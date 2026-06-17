@@ -44,11 +44,25 @@ resource "aws_vpc" "inspection" {
 
 # Deliberately NO aws_internet_gateway — egress is via on-prem only (C2).
 
+# Firewall subnets, one per AZ, carved from the hub /20.
+resource "aws_subnet" "firewall" {
+  for_each          = { for i, az in var.firewall_azs : az => cidrsubnet(var.hub_cidr, 4, i) }
+  vpc_id            = aws_vpc.inspection.id
+  cidr_block        = each.value
+  availability_zone = each.key
+  tags              = merge(var.tags, { Name = "hub-fw-${each.key}" })
+}
+
 resource "aws_networkfirewall_firewall" "hub" {
   name                = "hub-fw"
   firewall_policy_arn = aws_networkfirewall_firewall_policy.hub.arn
   vpc_id              = aws_vpc.inspection.id
-  # subnet_mapping per AZ -> firewall subnets carved from hub_cidr  # TODO
+  dynamic "subnet_mapping" {
+    for_each = aws_subnet.firewall
+    content {
+      subnet_id = subnet_mapping.value.id
+    }
+  }
 }
 
 resource "aws_networkfirewall_firewall_policy" "hub" {

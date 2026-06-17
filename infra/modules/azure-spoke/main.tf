@@ -30,21 +30,21 @@ resource "azurerm_subnet" "workload" {
 
 # --- Peer spoke <-> hub (both directions). No gateway transit to other spokes. ---
 resource "azurerm_virtual_network_peering" "spoke_to_hub" {
-  name                         = "peer-${var.name}-to-hub"
-  resource_group_name          = azurerm_resource_group.spoke.name
-  virtual_network_name         = azurerm_virtual_network.spoke.name
-  remote_virtual_network_id    = var.hub_vnet_id
-  allow_forwarded_traffic      = true
-  use_remote_gateways          = true # use the hub's ExpressRoute gateway
+  name                      = "peer-${var.name}-to-hub"
+  resource_group_name       = azurerm_resource_group.spoke.name
+  virtual_network_name      = azurerm_virtual_network.spoke.name
+  remote_virtual_network_id = var.hub_vnet_id
+  allow_forwarded_traffic   = true
+  use_remote_gateways       = true # use the hub's ExpressRoute gateway
 }
 
 resource "azurerm_virtual_network_peering" "hub_to_spoke" {
-  name                         = "peer-hub-to-${var.name}"
-  resource_group_name          = var.hub_resource_group
-  virtual_network_name         = var.hub_vnet_name
-  remote_virtual_network_id    = azurerm_virtual_network.spoke.id
-  allow_forwarded_traffic      = true
-  allow_gateway_transit        = true
+  name                      = "peer-hub-to-${var.name}"
+  resource_group_name       = var.hub_resource_group
+  virtual_network_name      = var.hub_vnet_name
+  remote_virtual_network_id = azurerm_virtual_network.spoke.id
+  allow_forwarded_traffic   = true
+  allow_gateway_transit     = true
 }
 
 # --- Force all egress + east-west through the hub firewall (doc 02 §3.4) ---

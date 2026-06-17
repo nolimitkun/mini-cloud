@@ -32,7 +32,7 @@ module "hub" {
 }
 
 module "spoke" {
-  source   = "../../modules/azure-spoke"
+  source = "../../modules/azure-spoke"
   for_each = {
     prod    = "10.32.16.0/20"
     nonprod = "10.32.32.0/20"

@@ -90,10 +90,10 @@ resource "google_compute_router_peer" "peer0" {
 
 # --- Firewall: allow LAN in over the tunnel; allow IAP SSH (no external IP needed) ---
 resource "google_compute_firewall" "from_lan" {
-  name      = "allow-from-onprem-lan"
-  project   = var.project_id
-  network   = google_compute_network.poc.id
-  direction = "INGRESS"
+  name          = "allow-from-onprem-lan"
+  project       = var.project_id
+  network       = google_compute_network.poc.id
+  direction     = "INGRESS"
   source_ranges = [var.onprem_lan_cidr]
   allow { protocol = "icmp" }
   allow {

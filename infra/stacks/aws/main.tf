@@ -36,8 +36,8 @@ module "hub" {
 
 # Workload spokes — one module instance per spoke (doc 02 §1.2).
 module "spoke" {
-  source             = "../../modules/aws-spoke"
-  for_each           = {
+  source = "../../modules/aws-spoke"
+  for_each = {
     prod    = "10.16.16.0/20"
     nonprod = "10.16.32.0/20"
     shared  = "10.16.48.0/20"

@@ -9,9 +9,9 @@ representative and marked `# TODO` where environment-specific values are require
 ```
 infra/
 ├── README.md
-├── policy/                 # guardrails as code (doc 04)
-│   ├── aws-scp.tf          # Service Control Policies
-│   └── gcp-org-policy.tf   # Organization Policy constraints
+├── policy/                 # guardrails as code (doc 04) — separate per cloud (separate creds)
+│   ├── aws/aws-scp.tf      # Service Control Policies
+│   └── gcp/gcp-org-policy.tf  # Organization Policy constraints
 ├── modules/
 │   ├── aws-hub/            # Tier-2 hub: Direct Connect GW, TGW, Network Firewall, resolvers
 │   ├── aws-spoke/          # workload VPC attached to TGW, default route -> firewall

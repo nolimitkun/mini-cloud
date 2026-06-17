@@ -40,7 +40,7 @@ module "hub" {
 }
 
 module "spoke" {
-  source   = "../../modules/gcp-spoke"
+  source = "../../modules/gcp-spoke"
   for_each = {
     prod    = { project = var.prod_project_id, cidr = "10.48.16.0/20" }
     nonprod = { project = var.nonprod_project_id, cidr = "10.48.32.0/20" }

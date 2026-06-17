@@ -31,10 +31,10 @@ resource "aws_organizations_policy" "no_public_exposure" {
         Resource = "*"
       },
       {
-        Sid      = "DenyPublicIPOnLaunch"
-        Effect   = "Deny"
-        Action   = "ec2:RunInstances"
-        Resource = "arn:aws:ec2:*:*:instance/*"
+        Sid       = "DenyPublicIPOnLaunch"
+        Effect    = "Deny"
+        Action    = "ec2:RunInstances"
+        Resource  = "arn:aws:ec2:*:*:instance/*"
         Condition = { Bool = { "ec2:AssociatePublicIpAddress" = "true" } }
       },
       {
@@ -44,10 +44,10 @@ resource "aws_organizations_policy" "no_public_exposure" {
         Resource = "*"
       },
       {
-        Sid      = "DenyPublicLoadBalancers"
-        Effect   = "Deny"
-        Action   = "elasticloadbalancing:CreateLoadBalancer"
-        Resource = "*"
+        Sid       = "DenyPublicLoadBalancers"
+        Effect    = "Deny"
+        Action    = "elasticloadbalancing:CreateLoadBalancer"
+        Resource  = "*"
         Condition = { StringEquals = { "elasticloadbalancing:Scheme" = "internet-facing" } }
       },
       {

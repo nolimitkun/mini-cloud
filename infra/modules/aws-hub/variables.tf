@@ -31,6 +31,12 @@ variable "dx_connection_id" {
   type        = string
 }
 
+variable "firewall_azs" {
+  description = "AZs for the Network Firewall endpoint subnets (one per AZ)."
+  type        = list(string)
+  default     = ["eu-west-1a", "eu-west-1b"]
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

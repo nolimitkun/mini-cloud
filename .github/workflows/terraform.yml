@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [stacks/aws, stacks/azure, stacks/gcp, stacks/gcp-poc, policy]
+        dir: [stacks/aws, stacks/azure, stacks/gcp, stacks/gcp-poc, policy/aws, policy/gcp]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
