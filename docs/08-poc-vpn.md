@@ -23,6 +23,8 @@ circuit termination is in production.
 
 ## 2. Topology
 
+![PoC detail: LAN strongSwan/FRR host over IPsec+BGP to GCP HA VPN, Cloud Router and a private test VM](diagrams/06-poc-vpn-detail.svg)
+
 ```
    LAN 192.168.1.0/24                          GCP VPC 10.48.0.0/24 (hub)
  ┌─────────────────────┐    IPsec/IKEv2     ┌────────────────────────────┐

@@ -27,3 +27,9 @@ Phase dependencies and gates from the runbook. See [06](../06-buildout-runbook.m
 Monthly platform cost by bucket. See [07 §5](../07-cost-estimate.md).
 
 ![Cost breakdown](05-cost-breakdown.svg)
+
+### 06 · PoC detail — LAN ↔ GCP VPN
+Full data path: strongSwan/FRR on-prem host, IPsec tunnel + eBGP over the internet, GCP HA VPN,
+Cloud Router, and a private test VM. See [08 §2](../08-poc-vpn.md).
+
+![PoC VPN detail](06-poc-vpn-detail.svg)
