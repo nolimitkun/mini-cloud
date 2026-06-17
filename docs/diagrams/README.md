@@ -33,3 +33,9 @@ Full data path: strongSwan/FRR on-prem host, IPsec tunnel + eBGP over the intern
 Cloud Router, and a private test VM. See [08 §2](../08-poc-vpn.md).
 
 ![PoC VPN detail](06-poc-vpn-detail.svg)
+
+### 07 · PoC bring-up sequence
+Order of operations: IKEv2 negotiation → CHILD_SA/ESP tunnel → eBGP session + route exchange →
+data-plane verification. See [08 §6](../08-poc-vpn.md).
+
+![PoC bring-up sequence](07-poc-bringup-sequence.svg)

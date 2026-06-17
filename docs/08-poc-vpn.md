@@ -108,6 +108,10 @@ sudo systemctl restart frr
 
 ## 6. Verification
 
+The tunnel and BGP come up in this order (what each check below confirms):
+
+![Bring-up sequence: IKEv2 → CHILD_SA/ESP → BGP → data plane](diagrams/07-poc-bringup-sequence.svg)
+
 | Check | Command | Expect |
 |-------|---------|--------|
 | IPsec up | `sudo swanctl --list-sas` | `ESTABLISHED`, child `INSTALLED` |
@@ -134,6 +138,34 @@ SSH the test VM without a public IP via IAP: `gcloud compute ssh <vm> --tunnel-t
 
 The BGP design, CIDR plan, and hub-and-spoke routing carry over unchanged — only the **transport**
 (VPN → circuit) and **redundancy** (single → dual) change.
+
+### 7.1 PoC variants for AWS and Azure
+
+The same LAN-as-on-prem pattern is replicated for the other two clouds — same on-prem strongSwan
+host, additional tunnels:
+
+| Cloud | Stack | Cloud-side construct | Routing |
+|-------|-------|----------------------|---------|
+| GCP | [`stacks/gcp-poc`](../infra/stacks/gcp-poc) | HA VPN gateway + Cloud Router | BGP `65000↔65020` |
+| AWS | [`stacks/aws-poc`](../infra/stacks/aws-poc) | Site-to-Site VPN (VGW) — **2 tunnels** | BGP `65000↔65010` (dynamic) |
+| Azure | [`stacks/azure-poc`](../infra/stacks/azure-poc) | Route-based VPN Gateway (VpnGw1) | **static** (LAN as local network gateway) |
+
+Each is private (no IGW / no public IP on workloads); the VPN gateway public IP is the only exposed
+endpoint, as in §1. CIDRs follow the IPAM plan: AWS `10.16.0.0/24`, Azure `10.32.0.0/24`.
+
+**On-prem deltas (strongSwan + FRR):**
+
+- Add one `connections {}` block per tunnel in `swanctl.conf`, each with its own remote peer IP,
+  PSK, and a **distinct `if_id`** → its own XFRM interface (`ipsec0`=GCP/42, `ipsec1`/`ipsec2`=AWS
+  tunnels/43-44, `ipsec3`=Azure/45). Run `ipsec-xfrm.sh` once per `if_id`.
+- AWS hands back two tunnels with assigned inside `/30`s — read `terraform output` for
+  `tunnel1_cgw_inside_address` / `tunnel1_vgw_inside_address` and add an FRR `neighbor` (remote-as
+  `65010`) per tunnel, peering the VGW inside address.
+- Azure uses static routing in this PoC (no FRR neighbor) — just a route for `10.32.0.0/24` via its
+  XFRM interface. BGP-over-VPN (APIPA peers) can be added later to match the GCP/AWS path.
+
+> AWS/Azure VPN gateways take time to provision (Azure VPN Gateway ~20–45 min). Bring up one cloud
+> at a time and verify with the §6 sequence before adding the next.
 
 ---
 

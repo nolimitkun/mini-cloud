@@ -1,0 +1,7 @@
+# Azure VPN PoC inputs — copy to terraform.tfvars and fill.
+
+onprem_public_ip = "203.0.113.10"           # TODO: your on-prem WAN/NAT public IP
+onprem_lan_cidr  = "192.168.1.0/24"         # TODO: your real LAN CIDR
+shared_secret    = "CHANGE-ME-long-psk"     # TODO: also set in strongSwan secrets
+
+# location = "westeurope"  # default
