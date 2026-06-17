@@ -36,6 +36,7 @@ service and **no Internet path** for inter-site traffic.
 | 04 | [Security baseline](04-security-baseline.md) | SCP / Azure Policy / Org Policy guardrails as code |
 | 05 | [DNS design](05-dns-design.md) | Namespace, resolvers, forwarding, split-horizon |
 | 06 | [Buildout runbook](06-buildout-runbook.md) | Phased, checkbox execution plan with gates |
+| 07 | [Cost estimate](07-cost-estimate.md) | Illustrative list-price monthly/annual platform cost |
 
 ## Infrastructure as code
 
