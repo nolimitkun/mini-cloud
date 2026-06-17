@@ -1,0 +1,17 @@
+# Azure stack inputs — copy to terraform.tfvars and fill the TODO values.
+# CIDRs/ASNs come from docs 02; ids come from circuit ordering (docs 03/06 Phase 1).
+
+# --- Identity / state ---
+# subscription_id (connectivity) — set in provider block                    # TODO
+# backend: azurerm storage account + container                              # TODO
+
+# --- ExpressRoute (ordered out-of-band, doc 03 §4; private peering only) ---
+express_route_circuit_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Network/expressRouteCircuits/er-hub" # TODO
+
+# NOTE: the connectivity resource group must be EXEMPTED from the "deny public IP"
+# guardrail — the ExpressRoute/Firewall gateways need a platform public IP (no data path).
+
+# --- Fixed by design (doc 02) ---
+# location = "eastus"
+# hub_cidr = "10.32.0.0/20"
+# spokes: prod 10.32.16.0/20 · nonprod 10.32.32.0/20 · shared 10.32.48.0/20

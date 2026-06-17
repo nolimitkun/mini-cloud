@@ -1,0 +1,21 @@
+# GCP stack inputs — copy to terraform.tfvars and fill the TODO values.
+# CIDRs/ASNs come from docs 02; ids come from circuit ordering (docs 03/06 Phase 1).
+
+# --- Identity / state ---
+# credentials / impersonation for the host project — set in provider block  # TODO
+# backend: gcs bucket                                                        # TODO
+
+# --- Projects (create via org/folder hierarchy first) ---
+host_project_id     = "hybrid-hub-host"  # TODO: Shared VPC host project id
+prod_project_id     = "hybrid-prod"      # TODO
+nonprod_project_id  = "hybrid-nonprod"   # TODO
+shared_project_id   = "hybrid-shared"    # TODO
+
+# --- Interconnect VLAN attachments (ordered out-of-band, doc 03 §5) ---
+interconnect_attachment_names = ["ic-attach-a", "ic-attach-b"] # TODO: real attachment names
+
+# --- Fixed by design (doc 02) ---
+# region           = "us-east4"
+# hub_cidr         = "10.48.0.0/20"
+# cloud_router_asn = 65020
+# spokes: prod 10.48.16.0/20 · nonprod 10.48.32.0/20 · shared 10.48.48.0/20

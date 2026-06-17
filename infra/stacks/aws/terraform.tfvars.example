@@ -1,0 +1,16 @@
+# AWS stack inputs — copy to terraform.tfvars and fill the TODO values.
+# CIDRs/ASNs come from docs 02; ids come from circuit ordering (docs 03/06 Phase 1).
+
+# --- Identity / state (set in provider + backend blocks, shown here for reference) ---
+# network_account_role_arn = "arn:aws:iam::<network-acct>:role/terraform"   # TODO
+# backend: s3 bucket + dynamodb lock table                                  # TODO
+
+# --- Direct Connect (ordered out-of-band, doc 03 §3) ---
+dx_connection_id = "dxcon-xxxxxxxx" # TODO: Dedicated DX connection id
+
+# --- Fixed by design (doc 02) — change only if the plan changes ---
+# region          = "us-east-1"
+# cloud_supernet  = "10.16.0.0/12"
+# hub_cidr        = "10.16.0.0/20"
+# amazon_side_asn = 65010
+# spokes: prod 10.16.16.0/20 · nonprod 10.16.32.0/20 · shared 10.16.48.0/20

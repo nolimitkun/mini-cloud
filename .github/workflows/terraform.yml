@@ -1,0 +1,45 @@
+name: terraform
+
+# Offline checks (fmt + validate) on every push/PR. No cloud credentials required:
+# validate uses `init -backend=false`. `plan` is intentionally NOT run here — it needs
+# per-cloud credentials and remote state; run it from an environment that has them.
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+  pull_request:
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.7"
+      - name: terraform fmt -check
+        working-directory: infra
+        run: terraform fmt -recursive -check -diff .
+
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [stacks/aws, stacks/azure, stacks/gcp, policy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.7"
+      - name: terraform init (no backend)
+        working-directory: infra/${{ matrix.dir }}
+        run: terraform init -backend=false -input=false
+      - name: terraform validate
+        working-directory: infra/${{ matrix.dir }}
+        run: terraform validate
