@@ -69,7 +69,7 @@ Attach at the OU that contains all workload + network accounts.
       "Effect": "Deny",
       "NotAction": ["iam:*", "organizations:*", "route53:*", "cloudfront:*", "sts:*"],
       "Resource": "*",
-      "Condition": { "StringNotEquals": { "aws:RequestedRegion": ["us-east-1"] } }
+      "Condition": { "StringNotEquals": { "aws:RequestedRegion": ["eu-west-1"] } }
     }
   ]
 }
@@ -104,7 +104,7 @@ and AWS Config rules (`vpc-no-internet-gateway`, `ec2-instance-no-public-ip`, `s
 Add the built-in / custom assignments:
 
 - **Deny public network access on PaaS** — Storage, Key Vault, SQL, Cosmos: `publicNetworkAccess = Disabled`, require **Private Endpoint**.
-- **Allowed locations** — restrict to `eastus` (`allowedLocations`).
+- **Allowed locations** — restrict to `westeurope` (`allowedLocations`).
 - **Deny public Standard LB / public App Gateway**.
 - **Audit/deny NSG rules allowing `Internet` inbound/outbound** except via the hub firewall.
 
@@ -131,7 +131,7 @@ booleanPolicy:
 constraint: constraints/gcp.resourceLocations
 listPolicy:
   allowedValues:
-    - in:us-east4-locations
+    - in:europe-west1-locations
 
 ---
 # Disable default network (forces explicit, private VPC design)

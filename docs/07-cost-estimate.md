@@ -1,7 +1,7 @@
 # Cost Estimate
 
 **Status:** Draft v0.1 — illustrative, list-price planning figures
-**Basis:** US regions, ~730 hrs/month, single region per cloud (D3), dual-circuit redundancy (D1).
+**Basis:** EU regions (eu-west-1 / westeurope / europe-west1), ~730 hrs/month, single region per cloud (D3), dual-circuit redundancy (D1).
 
 > ⚠️ **These are rough planning numbers, not a quote.** Cloud list prices change, vary by region,
 > and drop with committed-use / enterprise agreements. Figures exclude **workload** compute, storage,

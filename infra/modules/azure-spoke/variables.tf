@@ -5,7 +5,7 @@ variable "name" {
 
 variable "location" {
   type    = string
-  default = "eastus"
+  default = "westeurope"
 }
 
 variable "spoke_cidr" {

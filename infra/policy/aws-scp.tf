@@ -55,7 +55,7 @@ resource "aws_organizations_policy" "no_public_exposure" {
         Effect    = "Deny"
         NotAction = ["iam:*", "organizations:*", "route53:*", "cloudfront:*", "sts:*"]
         Resource  = "*"
-        Condition = { StringNotEquals = { "aws:RequestedRegion" = ["us-east-1"] } }
+        Condition = { StringNotEquals = { "aws:RequestedRegion" = ["eu-west-1"] } }
       }
     ]
   })

@@ -1,7 +1,7 @@
 variable "region" {
   description = "Single region for this landing zone (doc D3)."
   type        = string
-  default     = "us-east-1"
+  default     = "eu-west-1"
 }
 
 variable "cloud_supernet" {

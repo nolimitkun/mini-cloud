@@ -10,7 +10,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "eu-west-1"
   # assume_role into the network account  # TODO
 }
 
@@ -26,7 +26,7 @@ locals {
 
 module "hub" {
   source           = "../../modules/aws-hub"
-  region           = "us-east-1"
+  region           = "eu-west-1"
   cloud_supernet   = local.cloud_supernet
   hub_cidr         = "10.16.0.0/20"
   amazon_side_asn  = 65010

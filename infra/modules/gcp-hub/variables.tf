@@ -5,7 +5,7 @@ variable "project_id" {
 
 variable "region" {
   type    = string
-  default = "us-east4"
+  default = "europe-west1"
 }
 
 variable "hub_cidr" {

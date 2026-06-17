@@ -17,10 +17,20 @@ infra/
 │   ├── aws-spoke/          # workload VPC attached to TGW, default route -> firewall
 │   ├── azure-hub/          # ExpressRoute GW, hub VNet, Azure Firewall, Private DNS Resolver
 │   └── gcp-hub/            # Interconnect, Cloud Router, Shared VPC / NCC, Cloud DNS
+├── onprem/                # PoC on-prem VPN endpoint (strongSwan + FRR configs)
 └── stacks/
-    └── aws/               # composition: hub + N spokes for one cloud
-        └── main.tf
+    ├── aws/               # composition: hub + N spokes for one cloud
+    ├── azure/
+    ├── gcp/
+    └── gcp-poc/           # VPN PoC (doc 08): LAN <-> GCP over IPsec, local state
 ```
+
+## PoC variant (VPN instead of dedicated circuits)
+
+For a cheap proof-of-concept, [`modules/gcp-vpn-poc`](modules/gcp-vpn-poc) + [`stacks/gcp-poc`](stacks/gcp-poc)
+stand up a LAN↔GCP **site-to-site VPN** (HA VPN + BGP) with a no-external-IP test VM, paired with the
+on-prem [`onprem/`](onprem/README.md) strongSwan+FRR config. This **overrides decision D1** for the
+PoC only — see [docs/08-poc-vpn.md](../docs/08-poc-vpn.md).
 
 ## Conventions
 

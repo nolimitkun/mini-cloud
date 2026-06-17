@@ -41,7 +41,7 @@ resource "google_org_policy_policy" "resource_locations" {
   parent = "organizations/${var.org_id}"
   spec {
     rules {
-      values { allowed_values = ["in:us-east4-locations"] }
+      values { allowed_values = ["in:europe-west1-locations"] }
     }
   }
 }

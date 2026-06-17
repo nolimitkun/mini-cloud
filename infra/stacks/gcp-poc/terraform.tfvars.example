@@ -1,0 +1,8 @@
+# GCP VPN PoC inputs — copy to terraform.tfvars and fill.
+
+project_id       = "my-poc-project"      # TODO: your GCP project id
+onprem_public_ip = "203.0.113.10"        # TODO: your on-prem WAN/NAT public IP
+onprem_lan_cidr  = "192.168.1.0/24"      # TODO: your real LAN CIDR
+shared_secret    = "CHANGE-ME-long-random-psk" # TODO: also set in strongSwan secrets
+
+# region = "europe-west1"  # default

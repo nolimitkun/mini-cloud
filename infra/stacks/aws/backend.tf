@@ -4,7 +4,7 @@ terraform {
   backend "s3" {
     bucket         = "TODO-hybrid-cloud-tfstate"   # TODO: pre-created, versioned, encrypted
     key            = "stacks/aws/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "eu-west-1"
     dynamodb_table = "TODO-hybrid-cloud-tflock"      # TODO: pre-created lock table
     encrypt        = true
   }

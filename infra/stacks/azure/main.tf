@@ -19,7 +19,7 @@ variable "express_route_circuit_id" {
 }
 
 locals {
-  location = "eastus"
+  location = "westeurope"
   tags     = { project = "hybrid-cloud", tier = "landing-zone", cloud = "azure" }
 }
 

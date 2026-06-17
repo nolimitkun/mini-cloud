@@ -37,6 +37,7 @@ service and **no Internet path** for inter-site traffic.
 | 05 | [DNS design](05-dns-design.md) | Namespace, resolvers, forwarding, split-horizon |
 | 06 | [Buildout runbook](06-buildout-runbook.md) | Phased, checkbox execution plan with gates |
 | 07 | [Cost estimate](07-cost-estimate.md) | Illustrative list-price monthly/annual platform cost |
+| 08 | [PoC — VPN (GCP)](08-poc-vpn.md) | LAN-as-on-prem + strongSwan site-to-site VPN to GCP (overrides D1 for PoC) |
 
 ## Infrastructure as code
 

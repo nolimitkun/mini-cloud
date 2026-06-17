@@ -12,6 +12,6 @@ express_route_circuit_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/M
 # guardrail — the ExpressRoute/Firewall gateways need a platform public IP (no data path).
 
 # --- Fixed by design (doc 02) ---
-# location = "eastus"
+# location = "westeurope"
 # hub_cidr = "10.32.0.0/20"
 # spokes: prod 10.32.16.0/20 · nonprod 10.32.32.0/20 · shared 10.32.48.0/20

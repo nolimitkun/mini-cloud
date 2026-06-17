@@ -31,6 +31,8 @@ infra/     Terraform skeleton: hub+spoke modules ×3 clouds, policy guardrails, 
 - **Start here:** [docs/README.md](docs/README.md) — design index and reading order.
 - **Build it:** [docs/06-buildout-runbook.md](docs/06-buildout-runbook.md) — phased execution plan.
 - **Deploy it:** [infra/README.md](infra/README.md) — modules, stacks, `make` workflow.
+- **Try it cheaply (PoC):** [docs/08-poc-vpn.md](docs/08-poc-vpn.md) — LAN as on-prem + site-to-site
+  VPN to GCP (no dedicated circuit), with runnable Terraform + strongSwan config.
 
 ## Quick start (offline checks)
 

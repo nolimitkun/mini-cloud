@@ -20,7 +20,7 @@ fmt-check:
 
 # Backend-less init + validate works offline (no remote state, no creds).
 validate:
-	@set -e; for d in $(STACK_DIRS) policy; do \
+	@set -e; for d in $(STACK_DIRS) stacks/gcp-poc policy; do \
 		echo "==> validate $$d"; \
 		$(TF) -chdir=$$d init -backend=false -input=false >/dev/null; \
 		$(TF) -chdir=$$d validate; \

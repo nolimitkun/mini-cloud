@@ -10,7 +10,7 @@ terraform {
 }
 
 provider "google" {
-  region = "us-east4"
+  region = "europe-west1"
   # credentials / impersonation for the host project  # TODO
 }
 
@@ -28,7 +28,7 @@ variable "interconnect_attachment_names" {
 }
 
 locals {
-  region = "us-east4"
+  region = "europe-west1"
 }
 
 module "hub" {

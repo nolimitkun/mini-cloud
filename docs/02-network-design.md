@@ -15,9 +15,9 @@ into a Tier-2 landing zone (hub + workload spokes) plus a reserved block for gro
 | Site | Supernet | Addresses | Notes |
 |------|----------|-----------|-------|
 | On-prem | `10.0.0.0/12` | 10.0–10.15 | Datacenter + colo edge |
-| AWS | `10.16.0.0/12` | 10.16–10.31 | us-east-1 |
-| Azure | `10.32.0.0/12` | 10.32–10.47 | East US |
-| GCP | `10.48.0.0/12` | 10.48–10.63 | us-east4 |
+| AWS | `10.16.0.0/12` | 10.16–10.31 | eu-west-1 |
+| Azure | `10.32.0.0/12` | 10.32–10.47 | West Europe |
+| GCP | `10.48.0.0/12` | 10.48–10.63 | europe-west1 |
 | Transit / PaaS reserve | `10.64.0.0/12` | 10.64–10.79 | PrivateLink/PE/PSC ranges, future regions |
 
 ### 1.2 Per-cloud carve (identical pattern across providers)

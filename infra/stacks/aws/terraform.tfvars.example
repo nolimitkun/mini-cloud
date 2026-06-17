@@ -9,7 +9,7 @@
 dx_connection_id = "dxcon-xxxxxxxx" # TODO: Dedicated DX connection id
 
 # --- Fixed by design (doc 02) — change only if the plan changes ---
-# region          = "us-east-1"
+# region          = "eu-west-1"
 # cloud_supernet  = "10.16.0.0/12"
 # hub_cidr        = "10.16.0.0/20"
 # amazon_side_asn = 65010
