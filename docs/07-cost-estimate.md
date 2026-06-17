@@ -90,6 +90,8 @@ the on-prem NGFW, so they incur processing at each hop.
 
 ## 5. Roll-up
 
+![Monthly platform cost by bucket](diagrams/05-cost-breakdown.svg)
+
 | Bucket | Monthly | Annual |
 |--------|---------|--------|
 | AWS fixed | $1,610 | $19.3k |

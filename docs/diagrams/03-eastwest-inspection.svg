@@ -1,0 +1,42 @@
+<svg width="680" viewBox="0 0 680 354" role="img" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+<title>Cross-cloud east-west traffic hairpins through the on-prem hub</title>
+<desc>An approved AWS-to-Azure flow leaves the AWS prod spoke, is inspected by the AWS hub firewall, crosses Direct Connect to the on-prem NGFW, then crosses ExpressRoute to the Azure hub firewall and into the Azure prod spoke — inspected three times.</desc>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+
+<g>
+<rect x="250" y="40" width="180" height="64" rx="12" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.75"/>
+<text x="340" y="66" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#444441">On-prem hub NGFW</text>
+<text x="340" y="86" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">Central inspection</text>
+</g>
+
+<g>
+<rect x="60" y="150" width="170" height="64" rx="10" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.75"/>
+<text x="145" y="176" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#633806">AWS hub firewall</text>
+<text x="145" y="196" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">via Direct Connect</text>
+</g>
+
+<g>
+<rect x="450" y="150" width="170" height="64" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.75"/>
+<text x="535" y="176" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#0C447C">Azure hub firewall</text>
+<text x="535" y="196" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">via ExpressRoute</text>
+</g>
+
+<g>
+<rect x="60" y="270" width="170" height="64" rx="10" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.75"/>
+<text x="145" y="296" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#633806">AWS prod spoke</text>
+<text x="145" y="316" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">10.16.16.0/20</text>
+</g>
+
+<g>
+<rect x="450" y="270" width="170" height="64" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.75"/>
+<text x="535" y="296" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#0C447C">Azure prod spoke</text>
+<text x="535" y="316" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">10.32.16.0/20</text>
+</g>
+
+<line x1="145" y1="270" x2="145" y2="214" stroke="#888780" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<line x1="535" y1="270" x2="535" y2="214" stroke="#888780" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<path d="M145 150 L145 72 L248 72" fill="none" stroke="#888780" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<path d="M535 150 L535 72 L432 72" fill="none" stroke="#888780" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+</svg>

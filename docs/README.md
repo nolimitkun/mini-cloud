@@ -39,6 +39,8 @@ service and **no Internet path** for inter-site traffic.
 | 07 | [Cost estimate](07-cost-estimate.md) | Illustrative list-price monthly/annual platform cost |
 | 08 | [PoC — VPN (GCP)](08-poc-vpn.md) | LAN-as-on-prem + strongSwan site-to-site VPN to GCP (overrides D1 for PoC) |
 
+**Diagrams:** see the [diagram gallery](diagrams/README.md) — topology, landing zone, east-west inspection, buildout phases, cost breakdown (also embedded in the docs above).
+
 ## Infrastructure as code
 
 The [`../infra`](../infra/README.md) directory holds the Terraform skeleton: per-cloud landing-zone

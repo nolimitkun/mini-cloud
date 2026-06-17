@@ -9,6 +9,8 @@ phases run in parallel (see the dependency note in each).
 
 > Legend: ☐ not started · ⧗ ordered/in-flight · ✅ done-when gate passed
 
+![Buildout phase flow and dependencies](diagrams/04-buildout-phases.svg)
+
 ---
 
 ## Phase 0 — Foundations (week 0)

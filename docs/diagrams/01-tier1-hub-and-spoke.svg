@@ -1,0 +1,49 @@
+<svg width="680" viewBox="0 0 680 426" role="img" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+<title>Tier-1 hybrid multi-cloud hub-and-spoke</title>
+<desc>On-prem private cloud hub connects through a colocation edge over dedicated private circuits to AWS, Azure and GCP spokes, each with a private-endpoint service path.</desc>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+
+<g>
+<rect x="170" y="30" width="340" height="96" rx="12" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.75"/>
+<text x="340" y="58" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#444441">On-prem private cloud (hub)</text>
+<text x="340" y="82" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">BGP core · central NGFW · DNS · identity</text>
+<text x="340" y="104" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">Private-only · no public IPs</text>
+</g>
+
+<line x1="340" y1="128" x2="340" y2="166" stroke="#888780" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<g>
+<rect x="200" y="168" width="280" height="58" rx="10" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.75"/>
+<text x="340" y="190" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#3C3489">Colocation edge</text>
+<text x="340" y="210" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">Dedicated circuits per provider</text>
+</g>
+
+<line x1="340" y1="226" x2="340" y2="262" stroke="#888780" stroke-width="1.5"/>
+<line x1="133" y1="262" x2="547" y2="262" stroke="#888780" stroke-width="1.5"/>
+<line x1="133" y1="262" x2="133" y2="306" stroke="#888780" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="340" y1="262" x2="340" y2="306" stroke="#888780" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="547" y1="262" x2="547" y2="306" stroke="#888780" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<g>
+<rect x="40" y="308" width="186" height="98" rx="10" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.75"/>
+<text x="133" y="334" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#633806">AWS spoke</text>
+<text x="133" y="358" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">Direct Connect → TGW</text>
+<text x="133" y="380" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">PrivateLink endpoints</text>
+</g>
+
+<g>
+<rect x="247" y="308" width="186" height="98" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.75"/>
+<text x="340" y="334" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#0C447C">Azure spoke</text>
+<text x="340" y="358" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">ExpressRoute → vNet</text>
+<text x="340" y="380" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">Private Endpoint</text>
+</g>
+
+<g>
+<rect x="454" y="308" width="186" height="98" rx="10" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.75"/>
+<text x="547" y="334" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#085041">GCP spoke</text>
+<text x="547" y="358" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">Interconnect → NCC</text>
+<text x="547" y="380" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">PSC endpoints</text>
+</g>
+</svg>

@@ -111,6 +111,8 @@ Resolver (Azure), Cloud DNS forwarding (GCP).
 
 ## 4. East-west (cross-cloud) flows
 
+![Cross-cloud east-west hairpins through the on-prem NGFW, inspected three times](diagrams/03-eastwest-inspection.svg)
+
 Cloud-to-cloud traffic is **not** a direct path — there is no spoke-to-spoke and no cloud-to-cloud
 peering. An approved flow (e.g. AWS prod → Azure prod) traverses:
 

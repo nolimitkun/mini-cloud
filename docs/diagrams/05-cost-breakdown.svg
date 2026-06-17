@@ -1,0 +1,43 @@
+<svg width="680" viewBox="0 0 680 318" role="img" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+<title>Monthly platform cost by bucket</title>
+<desc>Horizontal bar chart of monthly platform cost: colocation and edge $4,000, GCP fixed $3,520, Azure fixed $1,900, data transfer at 10 TB $1,660, AWS fixed $1,610. Expected total about $12,700 per month.</desc>
+
+<text x="0" y="18" font-size="13" font-weight="500" fill="#888780">Monthly platform cost by bucket (USD) — expected total ≈ $12,700/mo</text>
+
+<g stroke="#b4b2a9" stroke-width="0.5" opacity="0.5">
+<line x1="260" y1="34" x2="260" y2="278"/>
+<line x1="380" y1="34" x2="380" y2="278"/>
+<line x1="500" y1="34" x2="500" y2="278"/>
+<line x1="620" y1="34" x2="620" y2="278"/>
+</g>
+<line x1="140" y1="34" x2="140" y2="278" stroke="#888780" stroke-width="0.75"/>
+
+<g font-size="11" fill="#888780" text-anchor="middle">
+<text x="260" y="292">$1k</text>
+<text x="380" y="292">$2k</text>
+<text x="500" y="292">$3k</text>
+<text x="620" y="292">$4k</text>
+</g>
+
+<g font-size="12" fill="#888780" text-anchor="end">
+<text x="132" y="57">Colo / edge</text>
+<text x="132" y="107">GCP fixed</text>
+<text x="132" y="157">Azure fixed</text>
+<text x="132" y="207">Data @ 10 TB</text>
+<text x="132" y="257">AWS fixed</text>
+</g>
+
+<rect x="140" y="40" width="480" height="34" rx="3" fill="#888780"/>
+<rect x="140" y="90" width="422" height="34" rx="3" fill="#639922"/>
+<rect x="140" y="140" width="228" height="34" rx="3" fill="#378ADD"/>
+<rect x="140" y="190" width="199" height="34" rx="3" fill="#7F77DD"/>
+<rect x="140" y="240" width="193" height="34" rx="3" fill="#BA7517"/>
+
+<g font-size="12" font-weight="500" fill="#888780">
+<text x="626" y="61">$4,000</text>
+<text x="568" y="111">$3,520</text>
+<text x="374" y="161">$1,900</text>
+<text x="345" y="211">$1,660</text>
+<text x="339" y="261">$1,610</text>
+</g>
+</svg>

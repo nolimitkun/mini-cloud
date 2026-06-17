@@ -71,6 +71,8 @@ Internet, and no traffic between sites traverses the public Internet.
 
 ### 3.1 Topology
 
+![Tier-1 hub-and-spoke: on-prem hub, colocation edge, AWS/Azure/GCP spokes](diagrams/01-tier1-hub-and-spoke.svg)
+
 ```
                          ┌─────────────────────────────┐
                          │     ON-PREM PRIVATE CLOUD    │
@@ -113,6 +115,8 @@ Internet, and no traffic between sites traverses the public Internet.
 - No spoke advertises another spoke's routes directly — the hub owns route propagation.
 
 ### 3.4 Two-tier (nested) hub-and-spoke — cloud landing zones
+
+![Per-cloud landing zone: a cloud hub with prod, non-prod and shared workload spokes](diagrams/02-landing-zone-nested.svg)
 
 The topology is hub-and-spoke at **two levels**:
 

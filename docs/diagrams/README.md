@@ -1,0 +1,29 @@
+# Diagrams
+
+Self-contained SVGs (inline styling, no external assets) — render in GitHub markdown in both light
+and dark mode. Each is embedded in the relevant design doc; this is the gallery.
+
+### 01 · Tier-1 hub-and-spoke
+On-prem hub ↔ AWS/Azure/GCP spokes over dedicated private circuits. See [01 §3.1](../01-architecture-specification.md).
+
+![Tier-1 hub-and-spoke](01-tier1-hub-and-spoke.svg)
+
+### 02 · Per-cloud landing zone (nested hub-and-spoke)
+Inside each cloud: a cloud hub with prod/non-prod/shared workload spokes. See [01 §3.4](../01-architecture-specification.md).
+
+![Landing zone nested hub-and-spoke](02-landing-zone-nested.svg)
+
+### 03 · Cross-cloud east-west inspection
+AWS→Azure hairpins through the on-prem NGFW, inspected three times. See [02 §4](../02-network-design.md).
+
+![East-west inspection hairpin](03-eastwest-inspection.svg)
+
+### 04 · Buildout phase flow
+Phase dependencies and gates from the runbook. See [06](../06-buildout-runbook.md).
+
+![Buildout phases](04-buildout-phases.svg)
+
+### 05 · Cost breakdown
+Monthly platform cost by bucket. See [07 §5](../07-cost-estimate.md).
+
+![Cost breakdown](05-cost-breakdown.svg)
