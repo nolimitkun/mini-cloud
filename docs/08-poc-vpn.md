@@ -65,10 +65,29 @@ circuit termination is in production.
 ## 4. Prerequisites
 
 - A GCP project with billing + the Compute API enabled, and `gcloud` / Terraform creds.
-- A Linux host on the LAN with a **reachable public IP**. Behind home NAT: forward **UDP 500 and
-  4500** to the strongSwan host and use its public (NAT) IP as the peer IP; NAT-T handles the rest.
+- A Linux host on the LAN with a **reachable public IP**. Since on-prem **initiates** the tunnel
+  (`start_action=start`) over NAT-T (UDP 4500), it works through a home router **without inbound
+  port-forwarding** — the router's outbound NAT keeps the session open.
 - Packages on the strongSwan host: `strongswan-swanctl` (or `strongswan`), `frr`.
 - IP forwarding enabled: `net.ipv4.ip_forward=1`.
+
+### 4.1 Dynamic public IP (e.g. Orange Livebox)
+
+GCP's external VPN gateway is pinned to the on-prem **public IP** (there is no FQDN/identity option —
+GCP matches the peer by source IP), so the IP must be stable while the tunnel is up. Residential ISPs
+(Orange Livebox, etc.) hand out **dynamic** IPs that change on router reboot / line resync.
+
+If it changes, the tunnel drops (GCP shows `NO_INCOMING_PACKETS`, BGP `DOWN`). Re-point both sides
+with one command — [`refresh-ip.sh`](../infra/onprem/refresh-ip.sh) detects the new IP, runs
+`terraform apply` to update the GCP gateway, and updates + restarts strongSwan:
+
+```bash
+bash infra/onprem/refresh-ip.sh        # run as your normal user (sudo used internally)
+```
+
+`setup.sh` also guards against this: it refuses to run if the current public IP no longer matches the
+one GCP was deployed with, and tells you to run `refresh-ip.sh` first. For anything beyond a PoC, use
+a static IP (ISP Pro offer) or a DDNS-triggered cron calling `refresh-ip.sh`.
 
 ---
 
