@@ -19,6 +19,14 @@ Strict non-overlapping RFC1918, split into **two planes**:
 A workload that only talks intra-cloud / to on-prem lives in the `10` plane. A workload that must be
 reachable from another cloud gets an interface (or sits) in the site's `172` cross-cloud range.
 
+The same rule applies to **PaaS / private endpoints** (PrivateLink / Private Endpoint / PSC):
+
+- An endpoint consumed **only intra-cloud or from on-prem** keeps its private-plane address
+  (`10.x.64.0/20`, from the `10.64.0.0/12` reserve).
+- An endpoint consumed **across clouds** is placed in the site's cross-cloud PaaS block
+  (`172.x.64.0/24`) so its address is reachable over the `172` plane like any other cross-cloud
+  resource — and so cross-cloud rules never have to reference the private `10` space.
+
 ### 1.1 Private supernets (plane 1)
 
 | Site | Supernet | Addresses | Notes |
@@ -33,14 +41,16 @@ reachable from another cloud gets an interface (or sits) in the site's `172` cro
 
 Carved from `172.16.0.0/12`, a `/16` per site. Only cross-cloud-eligible subnets draw from here.
 
-| Site | Cross-cloud block | Per-spoke `/24` (prod · non-prod · shared) |
-|------|-------------------|--------------------------------------------|
-| On-prem | `172.16.0.0/16` | `172.16.0.0/24` (services exposed cross-cloud) |
-| AWS | `172.17.0.0/16` | `172.17.16.0/24` · `172.17.32.0/24` · `172.17.48.0/24` |
-| Azure | `172.18.0.0/16` | `172.18.16.0/24` · `172.18.32.0/24` · `172.18.48.0/24` |
-| GCP | `172.19.0.0/16` | `172.19.16.0/24` · `172.19.32.0/24` · `172.19.48.0/24` |
+| Site | Cross-cloud block | Per-spoke `/24` (prod · non-prod · shared) | PaaS endpoints `/24` |
+|------|-------------------|--------------------------------------------|----------------------|
+| On-prem | `172.16.0.0/16` | `172.16.0.0/24` (services exposed cross-cloud) | `172.16.64.0/24` |
+| AWS | `172.17.0.0/16` | `172.17.16.0/24` · `172.17.32.0/24` · `172.17.48.0/24` | `172.17.64.0/24` |
+| Azure | `172.18.0.0/16` | `172.18.16.0/24` · `172.18.32.0/24` · `172.18.48.0/24` | `172.18.64.0/24` |
+| GCP | `172.19.0.0/16` | `172.19.16.0/24` · `172.19.32.0/24` · `172.19.48.0/24` | `172.19.64.0/24` |
 
-The third octet mirrors the private spoke offsets (16/32/48) so the two planes line up per spoke.
+The third octet mirrors the private spoke offsets (16/32/48) so the two planes line up per spoke;
+the `64` block mirrors the private `10.x.64.0/20` endpoint block. The whole `172.x.0.0/16` is
+advertised as one summary, so the PaaS `/24` needs no extra route.
 
 ### 1.3 Per-cloud carve (identical pattern across providers)
 
@@ -52,16 +62,17 @@ Using AWS as the worked example; Azure (`10.32` / `172.18`) and GCP (`10.48` / `
 | Prod spoke | `10.16.16.0/20` | private | Production workload VPC/VNet |
 | Non-prod spoke | `10.16.32.0/20` | private | Dev/test workload VPC/VNet |
 | Shared-services spoke | `10.16.48.0/20` | private | Platform services, CI, registries |
-| Private-endpoint subnets | `10.16.64.0/20` | private | PrivateLink / Private Endpoint / PSC NICs |
+| Private-endpoint subnets | `10.16.64.0/20` | private | PrivateLink / Private Endpoint / PSC NICs (intra-cloud / on-prem only) |
 | Reserved | `10.16.128.0/17` | private | Future spokes / second AZ expansion |
 | Prod cross-cloud subnet | `172.17.16.0/24` | cross-cloud | Prod resources reachable from other clouds |
 | Non-prod cross-cloud subnet | `172.17.32.0/24` | cross-cloud | Non-prod cross-cloud exposure |
 | Shared cross-cloud subnet | `172.17.48.0/24` | cross-cloud | Shared-services cross-cloud exposure |
+| Cross-cloud PaaS endpoints | `172.17.64.0/24` | cross-cloud | PrivateLink/PE/PSC endpoints consumed from other clouds |
 
 Each plane summarizes cleanly: the cloud hub advertises **one private summary** (`10.16.0.0/12`) and
 **one cross-cloud summary** (`172.17.0.0/16`) toward on-prem, keeping BGP tables small (Section 3.4).
 
-### 1.3 Subnet layout inside a spoke (example, prod `10.16.16.0/20`)
+### 1.4 Subnet layout inside a spoke (example, prod `10.16.16.0/20`)
 
 | Subnet | CIDR | AZ | Purpose |
 |--------|------|----|---------|

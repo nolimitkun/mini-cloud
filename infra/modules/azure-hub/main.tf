@@ -118,6 +118,9 @@ resource "azurerm_firewall" "hub" {
   tags = var.tags
 }
 
+# Cross-cloud-consumed Private Endpoints go in the cross-cloud PaaS block 172.18.64.0/24
+# (doc 02 §1.2); intra-cloud/on-prem-only endpoints stay in the private plane.
+
 # --- Private DNS Resolver (doc 05) ---
 resource "azurerm_private_dns_resolver" "hub" {
   name                = "pdnsr-hub"

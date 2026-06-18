@@ -67,5 +67,7 @@ resource "google_compute_firewall" "deny_egress_default" {
   destination_ranges = ["0.0.0.0/0"]
 }
 
+# Cross-cloud-consumed PSC endpoints go in the cross-cloud PaaS block 172.19.64.0/24
+# (doc 02 §1.2); intra-cloud/on-prem-only endpoints stay in the private plane.
 # Private Service Connect endpoint for Google APIs (no public API path).
 # resource "google_compute_global_address" + "google_compute_global_forwarding_rule" { ... }  # TODO (doc 05)

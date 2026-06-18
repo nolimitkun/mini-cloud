@@ -83,3 +83,6 @@ resource "aws_ec2_transit_gateway_route_table" "hub" {
 # Route 53 Resolver inbound/outbound endpoints live in the inspection VPC.
 # resource "aws_route53_resolver_endpoint" "inbound"  { ... }  # TODO (doc 05)
 # resource "aws_route53_resolver_endpoint" "outbound" { ... }  # TODO (doc 05)
+
+# Cross-cloud-consumed PrivateLink endpoints go in the cross-cloud PaaS block
+# 172.17.64.0/24 (doc 02 §1.2); intra-cloud/on-prem-only endpoints stay in 10.16.64.0/20.

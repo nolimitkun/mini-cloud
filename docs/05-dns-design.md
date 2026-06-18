@@ -62,6 +62,11 @@ keeping the hub-and-spoke boundary in DNS as well as routing.
   via the forwarders above — so a workload always gets the **private IP**, never a public one.
 - Public DNS for the same service name is never consulted from inside the network (split-horizon):
   egress to public resolvers is denied (C2), and conditional forwarders intercept the PaaS names.
+- **Two-plane endpoints ([02 §1](02-network-design.md)):** an endpoint consumed only intra-cloud /
+  from on-prem registers its **private-plane** address (`10.x.64.0/20`); an endpoint consumed across
+  clouds registers a **cross-cloud-plane** address (`172.x.64.0/24`). The provider private zone
+  returns whichever applies, so a cross-cloud consumer resolves the `172` address and reaches it over
+  the cross-cloud plane — no `10`-space route is ever needed off-cloud.
 
 ---
 
