@@ -18,6 +18,16 @@ output "test_vm_internal_ip" {
   value       = google_compute_instance.test.network_interface[0].network_ip
 }
 
+output "private_subnet_cidr" {
+  description = "Private-plane subnet (advertised to on-prem via BGP)."
+  value       = google_compute_subnetwork.hub.ip_cidr_range
+}
+
+output "crosscloud_subnet_cidr" {
+  description = "Cross-cloud-plane subnet (also advertised; reachable cross-cloud)."
+  value       = google_compute_subnetwork.crosscloud.ip_cidr_range
+}
+
 output "cloud_router_name" {
   value = google_compute_router.cr.name
 }

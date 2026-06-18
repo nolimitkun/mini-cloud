@@ -15,12 +15,23 @@ resource "google_compute_network" "poc" {
   auto_create_subnetworks = false
 }
 
+# Private plane (10.x) — intra-cloud / on-prem (doc 02 §1).
 resource "google_compute_subnetwork" "hub" {
   name                     = "subnet-poc-hub"
   project                  = var.project_id
   region                   = var.region
   network                  = google_compute_network.poc.id
   ip_cidr_range            = var.subnet_cidr
+  private_ip_google_access = true
+}
+
+# Cross-cloud plane (172.x) — resources approved for cross-cloud reach (doc 02 §1.2).
+resource "google_compute_subnetwork" "crosscloud" {
+  name                     = "subnet-poc-xcloud"
+  project                  = var.project_id
+  region                   = var.region
+  network                  = google_compute_network.poc.id
+  ip_cidr_range            = var.crosscloud_cidr
   private_ip_google_access = true
 }
 
@@ -51,7 +62,8 @@ resource "google_compute_router" "cr" {
   network = google_compute_network.poc.id
   bgp {
     asn = var.cloud_router_asn
-    # default advertise_mode = DEFAULT advertises the VPC subnets (10.48.0.0/24)
+    # default advertise_mode = DEFAULT advertises all VPC subnets — both the
+    # private (10.48.0.0/24) and cross-cloud (172.19.16.0/24) subnets.
   }
 }
 
@@ -88,13 +100,13 @@ resource "google_compute_router_peer" "peer0" {
   peer_asn        = var.onprem_asn
 }
 
-# --- Firewall: allow LAN in over the tunnel; allow IAP SSH (no external IP needed) ---
+# --- Firewall: allow on-prem (both planes) in over the tunnel; IAP SSH ---
 resource "google_compute_firewall" "from_lan" {
-  name          = "allow-from-onprem-lan"
+  name          = "allow-from-onprem"
   project       = var.project_id
   network       = google_compute_network.poc.id
   direction     = "INGRESS"
-  source_ranges = [var.onprem_lan_cidr]
+  source_ranges = [var.onprem_lan_cidr, var.onprem_crosscloud_cidr]
   allow { protocol = "icmp" }
   allow {
     protocol = "tcp"

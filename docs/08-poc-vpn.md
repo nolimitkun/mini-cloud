@@ -37,10 +37,12 @@ circuit termination is in production.
 ```
 
 - **On-prem hub** = the LAN; a Linux box runs **strongSwan** (IPsec) + **FRR** (BGP).
-- **GCP spoke** = a VPC with one `10.48.0.0/24` subnet, **HA VPN gateway**, **Cloud Router**, and a
-  test VM with no external IP.
-- **Routing:** BGP over the tunnel (link-local `169.254.0.0/30`). On-prem advertises the LAN; GCP
-  advertises `10.48.0.0/24`.
+- **GCP spoke** = a VPC with **both IPAM planes** ([02 §1](02-network-design.md)) — a private subnet
+  `10.48.0.0/24` and a cross-cloud subnet `172.19.16.0/24` — plus the **HA VPN gateway**, **Cloud
+  Router**, and a test VM with no external IP.
+- **Routing:** BGP over the tunnel (link-local `169.254.0.0/30`). On-prem advertises its private LAN
+  `192.168.1.0/24` **and** its cross-cloud range `172.16.0.0/24`; GCP advertises both its subnets
+  (`10.48.0.0/24` + `172.19.16.0/24`). The PoC thus exercises the two-plane model end-to-end.
 
 ---
 
@@ -48,8 +50,10 @@ circuit termination is in production.
 
 | Item | Value (PoC default) | Notes |
 |------|--------------------|-------|
-| LAN CIDR | `192.168.1.0/24` | Set to your real LAN range |
-| GCP VPC subnet | `10.48.0.0/24` | From the GCP supernet ([02 §1](02-network-design.md)) |
+| On-prem LAN (private) | `192.168.1.0/24` | Set to your real LAN range |
+| On-prem cross-cloud | `172.16.0.0/24` | Cross-cloud plane ([02 §1.2](02-network-design.md)) |
+| GCP private subnet | `10.48.0.0/24` | Private plane, from the GCP `/12` |
+| GCP cross-cloud subnet | `172.19.16.0/24` | Cross-cloud plane, from GCP `172.19.0.0/16` |
 | On-prem ASN | `65000` | Matches prod design |
 | GCP Cloud Router ASN | `65020` | Matches prod design |
 | BGP link-local (GCP / on-prem) | `169.254.0.1` / `169.254.0.2` | `/30` inside the tunnel |

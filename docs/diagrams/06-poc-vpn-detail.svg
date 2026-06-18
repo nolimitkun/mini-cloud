@@ -27,6 +27,7 @@
 <text x="58" y="382">• WAN public IP</text>
 <text x="58" y="410">• UDP 500 / 4500 · ESP</text>
 <text x="58" y="438">• ip_forward = 1</text>
+<text x="58" y="466">• adv 192.168.1.0/24 + 172.16.0.0/24</text>
 </g>
 
 <!-- GCP container -->
@@ -48,17 +49,18 @@
 
 <!-- VPC -->
 <rect x="392" y="300" width="256" height="202" rx="12" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.75"/>
-<text x="408" y="320" font-size="13" font-weight="500" fill="#27500A">VPC vpc-poc</text>
-<text x="408" y="338" font-size="12" fill="#3B6D11">subnet 10.48.0.0/24 · private</text>
+<text x="408" y="316" font-size="13" font-weight="500" fill="#27500A">VPC vpc-poc</text>
+<text x="408" y="333" font-size="11" fill="#3B6D11">private 10.48.0.0/24</text>
+<text x="408" y="349" font-size="11" fill="#3B6D11">x-cloud 172.19.16.0/24</text>
 
-<rect x="408" y="354" width="224" height="58" rx="9" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.75"/>
-<text x="520" y="374" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#085041">poc-test-vm</text>
-<text x="520" y="394" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">no external IP · 10.48.0.x</text>
+<rect x="408" y="360" width="224" height="50" rx="9" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.75"/>
+<text x="520" y="378" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#085041">poc-test-vm</text>
+<text x="520" y="396" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#0F6E56">no external IP · 10.48.0.x</text>
 
-<g font-size="12" fill="#3B6D11">
-<text x="408" y="436">Firewall (ingress):</text>
-<text x="408" y="456">• allow 192.168.1.0/24</text>
-<text x="408" y="476">• allow IAP 35.235.240.0/20</text>
+<g font-size="11" fill="#3B6D11">
+<text x="408" y="432">Firewall (ingress):</text>
+<text x="408" y="450">• allow 192.168.1.0/24 + 172.16.0.0/24</text>
+<text x="408" y="468">• allow IAP 35.235.240.0/20</text>
 </g>
 
 <!-- Tunnel across the internet channel -->

@@ -44,3 +44,5 @@ output "bgp_onprem_ip" { value = module.vpn_poc.bgp_onprem_ip }
 output "test_vm_internal_ip" { value = module.vpn_poc.test_vm_internal_ip }
 output "vpn_tunnel_name" { value = module.vpn_poc.vpn_tunnel_name }
 output "cloud_router_name" { value = module.vpn_poc.cloud_router_name }
+output "private_subnet_cidr" { value = module.vpn_poc.private_subnet_cidr }
+output "crosscloud_subnet_cidr" { value = module.vpn_poc.crosscloud_subnet_cidr }
