@@ -1,0 +1,59 @@
+<svg width="680" viewBox="0 0 680 410" role="img" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+<title>Two-plane IPAM: private and cross-cloud</title>
+<desc>Private plane 10.0.0.0/8 allocates a /12 per site (on-prem, AWS, Azure, GCP, plus a reserve) and is never advertised cloud-to-cloud. Cross-cloud plane 172.16.0.0/12 allocates a /16 per site for subnets approved for spoke-to-spoke flows, each /16 carved into spoke /24s and a PaaS /24.</desc>
+
+<!-- Private plane container -->
+<rect x="20" y="50" width="300" height="320" rx="14" fill="none" stroke="#5F5E5A" stroke-width="0.75"/>
+<text x="35" y="76" font-size="14" font-weight="500" fill="#444441">Private plane</text>
+<text x="35" y="94" font-size="12" fill="#5F5E5A">10.0.0.0/8 · cloud-local</text>
+
+<g font-size="13">
+<rect x="35" y="104" width="270" height="40" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="48" y="124" dominant-baseline="central" font-weight="500" fill="#444441">On-prem</text>
+<text x="292" y="124" text-anchor="end" dominant-baseline="central" font-size="12" fill="#5F5E5A">10.0.0.0/12</text>
+<rect x="35" y="152" width="270" height="40" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text x="48" y="172" dominant-baseline="central" font-weight="500" fill="#633806">AWS</text>
+<text x="292" y="172" text-anchor="end" dominant-baseline="central" font-size="12" fill="#854F0B">10.16.0.0/12</text>
+<rect x="35" y="200" width="270" height="40" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="48" y="220" dominant-baseline="central" font-weight="500" fill="#0C447C">Azure</text>
+<text x="292" y="220" text-anchor="end" dominant-baseline="central" font-size="12" fill="#185FA5">10.32.0.0/12</text>
+<rect x="35" y="248" width="270" height="40" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="48" y="268" dominant-baseline="central" font-weight="500" fill="#085041">GCP</text>
+<text x="292" y="268" text-anchor="end" dominant-baseline="central" font-size="12" fill="#0F6E56">10.48.0.0/12</text>
+<rect x="35" y="296" width="270" height="40" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+<text x="48" y="316" dominant-baseline="central" font-weight="500" fill="#5F5E5A">Reserve / PaaS</text>
+<text x="292" y="316" text-anchor="end" dominant-baseline="central" font-size="12" fill="#5F5E5A">10.64.0.0/12</text>
+</g>
+<text x="35" y="356" font-size="12" fill="#5F5E5A">Advertised to on-prem · never cloud-to-cloud</text>
+
+<!-- Cross-cloud plane container -->
+<rect x="360" y="50" width="300" height="320" rx="14" fill="none" stroke="#534AB7" stroke-width="0.75"/>
+<text x="375" y="76" font-size="14" font-weight="500" fill="#3C3489">Cross-cloud plane</text>
+<text x="375" y="94" font-size="12" fill="#534AB7">172.16.0.0/12 · spoke-to-spoke</text>
+
+<g font-size="13">
+<rect x="375" y="104" width="270" height="40" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="388" y="124" dominant-baseline="central" font-weight="500" fill="#444441">On-prem</text>
+<text x="632" y="124" text-anchor="end" dominant-baseline="central" font-size="12" fill="#5F5E5A">172.16.0.0/16</text>
+<rect x="375" y="152" width="270" height="40" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text x="388" y="172" dominant-baseline="central" font-weight="500" fill="#633806">AWS</text>
+<text x="632" y="172" text-anchor="end" dominant-baseline="central" font-size="12" fill="#854F0B">172.17.0.0/16</text>
+<rect x="375" y="200" width="270" height="40" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="388" y="220" dominant-baseline="central" font-weight="500" fill="#0C447C">Azure</text>
+<text x="632" y="220" text-anchor="end" dominant-baseline="central" font-size="12" fill="#185FA5">172.18.0.0/16</text>
+<rect x="375" y="248" width="270" height="40" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="388" y="268" dominant-baseline="central" font-weight="500" fill="#085041">GCP</text>
+<text x="632" y="268" text-anchor="end" dominant-baseline="central" font-size="12" fill="#0F6E56">172.19.0.0/16</text>
+<rect x="375" y="296" width="270" height="40" rx="8" fill="none" stroke="#534AB7" stroke-width="0.5" stroke-dasharray="4 3"/>
+<text x="388" y="310" dominant-baseline="central" font-size="11" fill="#534AB7">each /16 → spokes /24 (·16 ·32 ·48)</text>
+<text x="388" y="326" dominant-baseline="central" font-size="11" fill="#534AB7">+ PaaS endpoints /24 (·64)</text>
+</g>
+<text x="375" y="356" font-size="12" fill="#534AB7">Relayed cross-cloud per approved flow</text>
+
+<!-- bridge note -->
+<line x1="306" y1="172" x2="374" y2="172" stroke="#888780" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<text x="340" y="160" text-anchor="middle" font-size="10" fill="#888780">expose</text>
+</svg>

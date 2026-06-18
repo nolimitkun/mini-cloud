@@ -7,6 +7,8 @@
 
 ## 1. Addressing (IPAM)
 
+![Two-plane IPAM: private 10.0.0.0/8 and cross-cloud 172.16.0.0/12](diagrams/08-ipam-two-plane.svg)
+
 Strict non-overlapping RFC1918, split into **two planes**:
 
 - **Private plane (`10.0.0.0/8`)** — each site's normal, intra-cloud + on-prem addressing. A `/12`

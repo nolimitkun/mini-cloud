@@ -39,3 +39,9 @@ Order of operations: IKEv2 negotiation → CHILD_SA/ESP tunnel → eBGP session 
 data-plane verification. See [08 §6](../08-poc-vpn.md).
 
 ![PoC bring-up sequence](07-poc-bringup-sequence.svg)
+
+### 08 · Two-plane IPAM
+Private plane (`10.0.0.0/8`, cloud-local) vs cross-cloud plane (`172.16.0.0/12`, spoke-to-spoke),
+per-site allocations. See [02 §1](../02-network-design.md).
+
+![Two-plane IPAM](08-ipam-two-plane.svg)
