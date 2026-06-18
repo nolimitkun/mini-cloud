@@ -31,6 +31,12 @@ variable "onprem_crosscloud_cidr" {
   description = "On-prem cross-cloud range advertised over BGP and allowed in."
 }
 
+variable "enable_crosscloud_test_vm" {
+  type        = bool
+  default     = false
+  description = "Also deploy a test VM in the cross-cloud subnet (to ping a 172.x address)."
+}
+
 variable "onprem_public_ip" {
   type        = string
   description = "Public (WAN/NAT) IP of the on-prem strongSwan host — the VPN peer."

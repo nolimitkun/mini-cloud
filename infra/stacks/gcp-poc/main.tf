@@ -28,14 +28,19 @@ variable "shared_secret" {
   type      = string
   sensitive = true
 }
+variable "enable_crosscloud_test_vm" {
+  type    = bool
+  default = false
+}
 
 module "vpn_poc" {
-  source           = "../../modules/gcp-vpn-poc"
-  project_id       = var.project_id
-  region           = var.region
-  onprem_public_ip = var.onprem_public_ip
-  onprem_lan_cidr  = var.onprem_lan_cidr
-  shared_secret    = var.shared_secret
+  source                    = "../../modules/gcp-vpn-poc"
+  project_id                = var.project_id
+  region                    = var.region
+  onprem_public_ip          = var.onprem_public_ip
+  onprem_lan_cidr           = var.onprem_lan_cidr
+  shared_secret             = var.shared_secret
+  enable_crosscloud_test_vm = var.enable_crosscloud_test_vm
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }
@@ -46,3 +51,4 @@ output "vpn_tunnel_name" { value = module.vpn_poc.vpn_tunnel_name }
 output "cloud_router_name" { value = module.vpn_poc.cloud_router_name }
 output "private_subnet_cidr" { value = module.vpn_poc.private_subnet_cidr }
 output "crosscloud_subnet_cidr" { value = module.vpn_poc.crosscloud_subnet_cidr }
+output "crosscloud_test_vm_internal_ip" { value = module.vpn_poc.crosscloud_test_vm_internal_ip }

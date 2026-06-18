@@ -126,7 +126,7 @@ resource "google_compute_firewall" "iap_ssh" {
   }
 }
 
-# --- Test VM with no external IP ---
+# --- Test VM with no external IP (private plane) ---
 resource "google_compute_instance" "test" {
   name         = "poc-test-vm"
   project      = var.project_id
@@ -138,5 +138,23 @@ resource "google_compute_instance" "test" {
   network_interface {
     subnetwork = google_compute_subnetwork.hub.id
     # no access_config block => no external IP (private only)
+  }
+}
+
+# --- Optional second test VM in the cross-cloud subnet (172.19.16.0/24) ---
+# Lets you ping a 172.x address from on-prem to prove the cross-cloud plane
+# independently. Off by default to keep the base PoC minimal (one VM).
+resource "google_compute_instance" "test_xcloud" {
+  count        = var.enable_crosscloud_test_vm ? 1 : 0
+  name         = "poc-test-vm-xcloud"
+  project      = var.project_id
+  zone         = var.zone
+  machine_type = "e2-micro"
+  boot_disk {
+    initialize_params { image = "debian-cloud/debian-12" }
+  }
+  network_interface {
+    subnetwork = google_compute_subnetwork.crosscloud.id
+    # no access_config block => no external IP
   }
 }

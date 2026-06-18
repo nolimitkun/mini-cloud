@@ -123,8 +123,12 @@ The tunnel and BGP come up in this order (what each check below confirms):
 | BGP (on-prem) | `sudo vtysh -c 'show ip bgp summary'` | neighbor `169.254.0.1` state `Established` |
 | BGP (GCP) | `gcloud compute routers get-status <router> --region europe-west1` | learned route `192.168.1.0/24` |
 | Route present | `ip route get 10.48.0.10` | via `ipsec0` |
-| Data plane | `ping <test_vm_internal_ip>` from LAN | replies over the tunnel |
+| Data plane (private) | `ping <test_vm_internal_ip>` from LAN | replies over the tunnel |
+| Data plane (cross-cloud)¹ | `ping <crosscloud_test_vm_internal_ip>` from LAN | replies (172.19 plane) |
 | No public exposure | test VM has no external IP; `gcloud compute instances list` | `EXTERNAL_IP` empty |
+
+¹ Only when `enable_crosscloud_test_vm = true` — an optional second VM in the cross-cloud subnet
+(`172.19.16.0/24`) that lets you exercise the cross-cloud plane independently of the private one.
 
 SSH the test VM without a public IP via IAP: `gcloud compute ssh <vm> --tunnel-through-iap`.
 

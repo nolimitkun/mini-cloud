@@ -28,6 +28,11 @@ output "crosscloud_subnet_cidr" {
   value       = google_compute_subnetwork.crosscloud.ip_cidr_range
 }
 
+output "crosscloud_test_vm_internal_ip" {
+  description = "Private IP of the optional cross-cloud test VM (null if not enabled)."
+  value       = var.enable_crosscloud_test_vm ? google_compute_instance.test_xcloud[0].network_interface[0].network_ip : null
+}
+
 output "cloud_router_name" {
   value = google_compute_router.cr.name
 }
