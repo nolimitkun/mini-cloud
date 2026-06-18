@@ -38,12 +38,13 @@ module "hub" {
 module "spoke" {
   source = "../../modules/aws-spoke"
   for_each = {
-    prod    = "10.16.16.0/20"
-    nonprod = "10.16.32.0/20"
-    shared  = "10.16.48.0/20"
+    prod    = { private = "10.16.16.0/20", xcloud = "172.17.16.0/24" }
+    nonprod = { private = "10.16.32.0/20", xcloud = "172.17.32.0/24" }
+    shared  = { private = "10.16.48.0/20", xcloud = "172.17.48.0/24" }
   }
   name               = each.key
-  spoke_cidr         = each.value
+  spoke_cidr         = each.value.private
+  crosscloud_cidr    = each.value.xcloud
   transit_gateway_id = module.hub.transit_gateway_id
   tags               = local.tags
 }

@@ -42,13 +42,14 @@ module "hub" {
 module "spoke" {
   source = "../../modules/gcp-spoke"
   for_each = {
-    prod    = { project = var.prod_project_id, cidr = "10.48.16.0/20" }
-    nonprod = { project = var.nonprod_project_id, cidr = "10.48.32.0/20" }
-    shared  = { project = var.shared_project_id, cidr = "10.48.48.0/20" }
+    prod    = { project = var.prod_project_id, cidr = "10.48.16.0/20", xcloud = "172.19.16.0/24" }
+    nonprod = { project = var.nonprod_project_id, cidr = "10.48.32.0/20", xcloud = "172.19.32.0/24" }
+    shared  = { project = var.shared_project_id, cidr = "10.48.48.0/20", xcloud = "172.19.48.0/24" }
   }
   name               = each.key
   service_project_id = each.value.project
   host_project_id    = module.hub.host_project_id
   region             = local.region
   spoke_cidr         = each.value.cidr
+  crosscloud_cidr    = each.value.xcloud
 }

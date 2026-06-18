@@ -18,4 +18,5 @@ interconnect_attachment_names = ["ic-attach-a", "ic-attach-b"] # TODO: real atta
 # region           = "europe-west1"
 # hub_cidr         = "10.48.0.0/20"
 # cloud_router_asn = 65020
-# spokes: prod 10.48.16.0/20 · nonprod 10.48.32.0/20 · shared 10.48.48.0/20
+# spokes (private):  prod 10.48.16.0/20 · nonprod 10.48.32.0/20 · shared 10.48.48.0/20
+# spokes (x-cloud):   prod 172.19.16.0/24 · nonprod 172.19.32.0/24 · shared 172.19.48.0/24

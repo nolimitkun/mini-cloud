@@ -14,4 +14,5 @@ express_route_circuit_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/M
 # --- Fixed by design (doc 02) ---
 # location = "westeurope"
 # hub_cidr = "10.32.0.0/20"
-# spokes: prod 10.32.16.0/20 · nonprod 10.32.32.0/20 · shared 10.32.48.0/20
+# spokes (private):  prod 10.32.16.0/20 · nonprod 10.32.32.0/20 · shared 10.32.48.0/20
+# spokes (x-cloud):   prod 172.18.16.0/24 · nonprod 172.18.32.0/24 · shared 172.18.48.0/24

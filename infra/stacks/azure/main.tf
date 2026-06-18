@@ -34,13 +34,14 @@ module "hub" {
 module "spoke" {
   source = "../../modules/azure-spoke"
   for_each = {
-    prod    = "10.32.16.0/20"
-    nonprod = "10.32.32.0/20"
-    shared  = "10.32.48.0/20"
+    prod    = { private = "10.32.16.0/20", xcloud = "172.18.16.0/24" }
+    nonprod = { private = "10.32.32.0/20", xcloud = "172.18.32.0/24" }
+    shared  = { private = "10.32.48.0/20", xcloud = "172.18.48.0/24" }
   }
   name                = each.key
   location            = local.location
-  spoke_cidr          = each.value
+  spoke_cidr          = each.value.private
+  crosscloud_cidr     = each.value.xcloud
   hub_vnet_id         = module.hub.hub_vnet_id
   hub_vnet_name       = module.hub.hub_vnet_name
   hub_resource_group  = module.hub.resource_group_name

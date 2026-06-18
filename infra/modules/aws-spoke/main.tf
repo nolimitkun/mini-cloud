@@ -24,6 +24,21 @@ resource "aws_subnet" "private" {
   tags = merge(var.tags, { Name = "spoke-${var.name}-${each.key}" })
 }
 
+# Cross-cloud plane: a secondary VPC CIDR (172.x) holding only subnets approved for
+# cross-cloud (spoke-to-spoke) flows. Private 10.x stays cloud-local (doc 02 §1.2).
+resource "aws_vpc_ipv4_cidr_block_association" "crosscloud" {
+  vpc_id     = aws_vpc.spoke.id
+  cidr_block = var.crosscloud_cidr
+}
+
+resource "aws_subnet" "crosscloud" {
+  vpc_id            = aws_vpc.spoke.id
+  cidr_block        = var.crosscloud_cidr
+  availability_zone = var.azs[0]
+  depends_on        = [aws_vpc_ipv4_cidr_block_association.crosscloud]
+  tags              = merge(var.tags, { Name = "spoke-${var.name}-xcloud", plane = "cross-cloud" })
+}
+
 # Attach the spoke to the Tier-2 hub.
 resource "aws_ec2_transit_gateway_vpc_attachment" "spoke" {
   subnet_ids         = [for s in aws_subnet.private : s.id]

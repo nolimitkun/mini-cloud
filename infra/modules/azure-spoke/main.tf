@@ -17,8 +17,9 @@ resource "azurerm_virtual_network" "spoke" {
   name                = "vnet-${var.name}"
   location            = azurerm_resource_group.spoke.location
   resource_group_name = azurerm_resource_group.spoke.name
-  address_space       = [var.spoke_cidr]
-  tags                = var.tags
+  # Private plane (10.x) + cross-cloud plane (172.x) — doc 02 §1.2.
+  address_space = [var.spoke_cidr, var.crosscloud_cidr]
+  tags          = var.tags
 }
 
 resource "azurerm_subnet" "workload" {
@@ -26,6 +27,14 @@ resource "azurerm_subnet" "workload" {
   resource_group_name  = azurerm_resource_group.spoke.name
   virtual_network_name = azurerm_virtual_network.spoke.name
   address_prefixes     = [cidrsubnet(var.spoke_cidr, 4, 0)]
+}
+
+# Cross-cloud subnet: only resources approved for spoke-to-spoke flows.
+resource "azurerm_subnet" "crosscloud" {
+  name                 = "snet-xcloud"
+  resource_group_name  = azurerm_resource_group.spoke.name
+  virtual_network_name = azurerm_virtual_network.spoke.name
+  address_prefixes     = [var.crosscloud_cidr]
 }
 
 # --- Peer spoke <-> hub (both directions). No gateway transit to other spokes. ---

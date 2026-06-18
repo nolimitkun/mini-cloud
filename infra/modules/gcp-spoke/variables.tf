@@ -20,5 +20,10 @@ variable "region" {
 
 variable "spoke_cidr" {
   type        = string
-  description = "Spoke /20 from the IPAM plan (doc 02 §1.2)."
+  description = "Spoke /20 from the private IPAM plane (doc 02 §1.2)."
+}
+
+variable "crosscloud_cidr" {
+  type        = string
+  description = "Cross-cloud /24 from the 172.16.0.0/12 plane (doc 02 §1.2)."
 }

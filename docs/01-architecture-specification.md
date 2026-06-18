@@ -157,13 +157,12 @@ directly — all transit and inspection passes through the cloud hub.
 
 ### 4.1 IP Address Management (IPAM)
 
-- Single authoritative IPAM; allocate **non-overlapping** supernets:
-  - On-prem: `10.0.0.0/12`
-  - AWS: `10.16.0.0/12`
-  - Azure: `10.32.0.0/12`
-  - GCP: `10.48.0.0/12`
-  - Reserved/transit/PaaS: `10.64.0.0/12`
-- Summarizable per-region blocks to keep BGP tables small.
+- Single authoritative IPAM, split into **two planes** (see [02 §1](../docs/02-network-design.md) for the full plan):
+  - **Private plane** `10.0.0.0/8` — intra-cloud + on-prem; never advertised cloud-to-cloud:
+    - On-prem `10.0.0.0/12` · AWS `10.16.0.0/12` · Azure `10.32.0.0/12` · GCP `10.48.0.0/12` · reserve/PaaS `10.64.0.0/12`
+  - **Cross-cloud plane** `172.16.0.0/12` — only subnets approved for spoke-to-spoke flows; all cross-cloud routes/rules scope to this range:
+    - On-prem `172.16.0.0/16` · AWS `172.17.0.0/16` · Azure `172.18.0.0/16` · GCP `172.19.0.0/16`
+- Summarizable per-site blocks (one private + one cross-cloud summary per cloud) keep BGP tables small.
 
 ### 4.2 DNS
 

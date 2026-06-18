@@ -13,6 +13,11 @@ variable "transit_gateway_id" {
   type        = string
 }
 
+variable "crosscloud_cidr" {
+  description = "Cross-cloud /24 from the 172.16.0.0/12 plane (doc 02 §1.2)."
+  type        = string
+}
+
 variable "azs" {
   description = "Availability zones for HA subnets."
   type        = list(string)

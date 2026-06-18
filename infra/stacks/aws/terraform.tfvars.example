@@ -13,4 +13,5 @@ dx_connection_id = "dxcon-xxxxxxxx" # TODO: Dedicated DX connection id
 # cloud_supernet  = "10.16.0.0/12"
 # hub_cidr        = "10.16.0.0/20"
 # amazon_side_asn = 65010
-# spokes: prod 10.16.16.0/20 · nonprod 10.16.32.0/20 · shared 10.16.48.0/20
+# spokes (private):  prod 10.16.16.0/20 · nonprod 10.16.32.0/20 · shared 10.16.48.0/20
+# spokes (x-cloud):   prod 172.17.16.0/24 · nonprod 172.17.32.0/24 · shared 172.17.48.0/24

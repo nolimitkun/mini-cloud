@@ -7,10 +7,19 @@
 
 ## 1. Addressing (IPAM)
 
-Strict non-overlapping RFC1918. Each site gets a `/12` supernet; within a cloud the `/12` is carved
-into a Tier-2 landing zone (hub + workload spokes) plus a reserved block for growth.
+Strict non-overlapping RFC1918, split into **two planes**:
 
-### 1.1 Supernets
+- **Private plane (`10.0.0.0/8`)** — each site's normal, intra-cloud + on-prem addressing. A `/12`
+  per site. These prefixes are reachable from on-prem but are **never advertised cloud-to-cloud**.
+- **Cross-cloud plane (`172.16.0.0/12`)** — a separate range per site holding only the subnets whose
+  workloads are *approved to participate in cross-cloud (spoke-to-spoke) flows*. All cross-cloud
+  routes and firewall rules reference this plane only, so exposure is explicit and the broad private
+  `10/12` space stays cloud-local.
+
+A workload that only talks intra-cloud / to on-prem lives in the `10` plane. A workload that must be
+reachable from another cloud gets an interface (or sits) in the site's `172` cross-cloud range.
+
+### 1.1 Private supernets (plane 1)
 
 | Site | Supernet | Addresses | Notes |
 |------|----------|-----------|-------|
@@ -20,21 +29,37 @@ into a Tier-2 landing zone (hub + workload spokes) plus a reserved block for gro
 | GCP | `10.48.0.0/12` | 10.48–10.63 | europe-west1 |
 | Transit / PaaS reserve | `10.64.0.0/12` | 10.64–10.79 | PrivateLink/PE/PSC ranges, future regions |
 
-### 1.2 Per-cloud carve (identical pattern across providers)
+### 1.2 Cross-cloud supernets (plane 2)
 
-Using AWS `10.16.0.0/12` as the worked example; Azure (`10.32`) and GCP (`10.48`) follow the same offsets.
+Carved from `172.16.0.0/12`, a `/16` per site. Only cross-cloud-eligible subnets draw from here.
 
-| Block | CIDR (AWS) | Role |
-|-------|-----------|------|
-| Cloud hub | `10.16.0.0/20` | Connectivity hub (TGW/hub-VNet/Shared-VPC), firewall, DNS, gateways |
-| Prod spoke | `10.16.16.0/20` | Production workload VPC/VNet |
-| Non-prod spoke | `10.16.32.0/20` | Dev/test workload VPC/VNet |
-| Shared-services spoke | `10.16.48.0/20` | Platform services, CI, registries |
-| Private-endpoint subnets | `10.16.64.0/20` | PrivateLink / Private Endpoint / PSC NICs |
-| Reserved | `10.16.128.0/17` | Future spokes / second AZ expansion |
+| Site | Cross-cloud block | Per-spoke `/24` (prod · non-prod · shared) |
+|------|-------------------|--------------------------------------------|
+| On-prem | `172.16.0.0/16` | `172.16.0.0/24` (services exposed cross-cloud) |
+| AWS | `172.17.0.0/16` | `172.17.16.0/24` · `172.17.32.0/24` · `172.17.48.0/24` |
+| Azure | `172.18.0.0/16` | `172.18.16.0/24` · `172.18.32.0/24` · `172.18.48.0/24` |
+| GCP | `172.19.0.0/16` | `172.19.16.0/24` · `172.19.32.0/24` · `172.19.48.0/24` |
 
-Each `/20` summarizes cleanly so the cloud hub advertises **one route per cloud** (`10.16.0.0/12`)
-toward on-prem, keeping BGP tables small (Section 3.4).
+The third octet mirrors the private spoke offsets (16/32/48) so the two planes line up per spoke.
+
+### 1.3 Per-cloud carve (identical pattern across providers)
+
+Using AWS as the worked example; Azure (`10.32` / `172.18`) and GCP (`10.48` / `172.19`) follow the same offsets.
+
+| Block | CIDR (AWS) | Plane | Role |
+|-------|-----------|-------|------|
+| Cloud hub | `10.16.0.0/20` | private | Connectivity hub (TGW/hub-VNet/Shared-VPC), firewall, DNS, gateways |
+| Prod spoke | `10.16.16.0/20` | private | Production workload VPC/VNet |
+| Non-prod spoke | `10.16.32.0/20` | private | Dev/test workload VPC/VNet |
+| Shared-services spoke | `10.16.48.0/20` | private | Platform services, CI, registries |
+| Private-endpoint subnets | `10.16.64.0/20` | private | PrivateLink / Private Endpoint / PSC NICs |
+| Reserved | `10.16.128.0/17` | private | Future spokes / second AZ expansion |
+| Prod cross-cloud subnet | `172.17.16.0/24` | cross-cloud | Prod resources reachable from other clouds |
+| Non-prod cross-cloud subnet | `172.17.32.0/24` | cross-cloud | Non-prod cross-cloud exposure |
+| Shared cross-cloud subnet | `172.17.48.0/24` | cross-cloud | Shared-services cross-cloud exposure |
+
+Each plane summarizes cleanly: the cloud hub advertises **one private summary** (`10.16.0.0/12`) and
+**one cross-cloud summary** (`172.17.0.0/16`) toward on-prem, keeping BGP tables small (Section 3.4).
 
 ### 1.3 Subnet layout inside a spoke (example, prod `10.16.16.0/20`)
 
@@ -84,23 +109,27 @@ Resolver (Azure), Cloud DNS forwarding (GCP).
 
 ### 3.3 Advertisements
 
-| From | Advertises | To |
-|------|-----------|----|
-| On-prem | `10.0.0.0/12` (on-prem) + default-originate (optional, for controlled egress) | All clouds |
-| AWS hub | `10.16.0.0/12` (summary) | On-prem |
-| Azure hub | `10.32.0.0/12` (summary) | On-prem |
-| GCP hub | `10.48.0.0/12` (summary) | On-prem |
+Each cloud advertises **two summaries** to on-prem — its private `/12` and its cross-cloud `/16`:
 
-- Clouds advertise **summary only** — no per-spoke routes leak across the WAN.
-- On-prem **does not redistribute one cloud's summary to another** → enforces no implicit
-  spoke-to-spoke (G3). Cross-cloud reachability is added as an *explicit* policy route when a flow
-  is approved (Section 4).
+| From | Advertises (private) | Advertises (cross-cloud) | To |
+|------|----------------------|--------------------------|----|
+| On-prem | `10.0.0.0/12` + optional default-originate | `172.16.0.0/16` | All clouds |
+| AWS hub | `10.16.0.0/12` | `172.17.0.0/16` | On-prem |
+| Azure hub | `10.32.0.0/12` | `172.18.0.0/16` | On-prem |
+| GCP hub | `10.48.0.0/12` | `172.19.0.0/16` | On-prem |
+
+- Clouds advertise **summaries only** — no per-spoke routes leak across the WAN.
+- **Private `10/12` summaries are never relayed cloud-to-cloud.** On-prem does not redistribute one
+  cloud's private summary to another → no implicit spoke-to-spoke (G3).
+- **Cross-cloud reachability uses the `172.16.0.0/12` plane only.** Even there it is not blanket: on-prem
+  relays a *specific* approved cross-cloud `/24` (e.g. `172.17.16.0/24`) to the destination cloud per
+  approved flow (Section 4). The dedicated plane just scopes every cross-cloud route/rule to `172/12`.
 
 ### 3.4 In-cloud route tables (Tier-2)
 
 - **Cloud hub** holds the circuit attachment and the inspection firewall. Its route table sends
-  `10.0.0.0/12` (on-prem) and any approved cross-cloud prefix out the circuit, and `0.0.0.0/0`
-  to the firewall (default-deny egress).
+  `10.0.0.0/12` (on-prem) and any approved cross-cloud `/24` (from `172.16.0.0/12`) out the circuit,
+  and `0.0.0.0/0` to the firewall (default-deny egress).
 - **Workload spokes** default-route (`0.0.0.0/0`) to the cloud hub firewall via:
   - AWS: spoke VPC route table → TGW attachment; TGW route table → firewall/inspection VPC.
   - Azure: spoke VNet UDR `0.0.0.0/0` → Azure Firewall private IP in hub VNet (peered).
@@ -123,8 +152,12 @@ AWS spoke → AWS hub firewall → Direct Connect → on-prem NGFW
 
 - Inspected at the **source cloud firewall**, the **on-prem NGFW**, and the **destination cloud
   firewall** (hybrid inspection, D2).
-- Enabled by adding the specific destination prefix (e.g. `10.32.16.0/20`) as an explicit route +
-  firewall allow-rule on the path — never a blanket cloud-to-cloud route.
+- Both endpoints are **cross-cloud-plane** addresses: AWS prod exposes `172.17.16.0/24`, Azure prod
+  exposes `172.18.16.0/24`. The flow is enabled by relaying that specific `/24` + a firewall
+  allow-rule on the path — never a blanket route, and never touching the `10/12` private plane.
+- Private-only resources (in `10/12`) are unreachable cross-cloud by construction — they are never
+  advertised past on-prem, so lateral exposure is impossible without first placing a workload in the
+  `172` plane.
 - Latency cost is accepted as the trade-off for central control and zero lateral trust.
 
 ---

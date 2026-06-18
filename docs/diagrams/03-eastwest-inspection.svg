@@ -25,14 +25,16 @@
 
 <g>
 <rect x="60" y="270" width="170" height="64" rx="10" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.75"/>
-<text x="145" y="296" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#633806">AWS prod spoke</text>
-<text x="145" y="316" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">10.16.16.0/20</text>
+<text x="145" y="294" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#633806">AWS prod spoke</text>
+<text x="145" y="312" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">x-cloud 172.17.16.0/24</text>
+<text x="145" y="328" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854F0B">private 10.16.16.0/20</text>
 </g>
 
 <g>
 <rect x="450" y="270" width="170" height="64" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.75"/>
-<text x="535" y="296" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#0C447C">Azure prod spoke</text>
-<text x="535" y="316" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">10.32.16.0/20</text>
+<text x="535" y="294" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#0C447C">Azure prod spoke</text>
+<text x="535" y="312" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">x-cloud 172.18.16.0/24</text>
+<text x="535" y="328" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">private 10.32.16.0/20</text>
 </g>
 
 <line x1="145" y1="270" x2="145" y2="214" stroke="#888780" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
