@@ -28,6 +28,11 @@ variable "shared_secret" {
   type      = string
   sensitive = true
 }
+# VM-less by default — test via the Cloud Router BGP IP (169.254.0.1) + BGP session.
+variable "enable_test_vm" {
+  type    = bool
+  default = false
+}
 variable "enable_crosscloud_test_vm" {
   type    = bool
   default = false
@@ -45,6 +50,7 @@ module "vpn_poc" {
   onprem_lan_cidr           = var.onprem_lan_cidr
   shared_secret             = var.shared_secret
   crosscloud_cidr           = var.crosscloud_cidr
+  enable_test_vm            = var.enable_test_vm
   enable_crosscloud_test_vm = var.enable_crosscloud_test_vm
 }
 

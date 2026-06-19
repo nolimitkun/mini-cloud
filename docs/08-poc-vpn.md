@@ -142,12 +142,17 @@ The tunnel and BGP come up in this order (what each check below confirms):
 | BGP (on-prem) | `sudo vtysh -c 'show ip bgp summary'` | neighbor `169.254.0.1` state `Established` |
 | BGP (GCP) | `gcloud compute routers get-status <router> --region europe-west1` | learned route `192.168.1.0/24` |
 | Route present | `ip route get 10.48.0.10` | via `ipsec0` |
-| Data plane (private) | `ping <test_vm_internal_ip>` from LAN | replies over the tunnel |
-| Data plane (cross-cloud)¹ | `ping <crosscloud_test_vm_internal_ip>` from LAN | replies (cross-cloud plane) |
-| No public exposure | test VM has no external IP; `gcloud compute instances list` | `EXTERNAL_IP` empty |
+| **Data plane (VM-less)** | `ping 169.254.0.1` from on-prem | replies over ESP (Cloud Router) |
+| Data plane (private)¹ | `ping <test_vm_internal_ip>` from LAN | replies over the tunnel |
+| Data plane (cross-cloud)² | `ping <crosscloud_test_vm_internal_ip>` from LAN | replies (cross-cloud plane) |
+| No public exposure | any test VM has no external IP; `gcloud compute instances list` | `EXTERNAL_IP` empty |
 
-¹ Only when `enable_crosscloud_test_vm = true` — an optional second VM in the cross-cloud subnet
-(`192.168.50.0/24`) that lets you exercise the cross-cloud plane independently of the private one.
+**Test VMs are optional and off by default** — the PoC is VM-less. The Cloud Router BGP IP
+(`169.254.0.1`) ping above, plus the `Established` BGP session (TCP/179 over ESP), already prove the
+data plane end-to-end on free resources. Spin up VMs only to ping a workload IP directly:
+
+¹ `enable_test_vm = true` → a VM in the private subnet (`10.48.0.0/24`).
+² `enable_crosscloud_test_vm = true` → a VM in the cross-cloud subnet (`192.168.50.0/24`).
 
 SSH the test VM without a public IP via IAP: `gcloud compute ssh <vm> --tunnel-through-iap`.
 

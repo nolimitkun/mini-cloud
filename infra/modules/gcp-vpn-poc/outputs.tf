@@ -14,8 +14,8 @@ output "bgp_onprem_ip" {
 }
 
 output "test_vm_internal_ip" {
-  description = "Private IP of the test VM — ping/SSH it over the tunnel."
-  value       = google_compute_instance.test.network_interface[0].network_ip
+  description = "Private IP of the test VM (null if not enabled)."
+  value       = var.enable_test_vm ? google_compute_instance.test[0].network_interface[0].network_ip : null
 }
 
 output "private_subnet_cidr" {

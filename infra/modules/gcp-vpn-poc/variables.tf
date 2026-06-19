@@ -31,10 +31,16 @@ variable "onprem_crosscloud_cidr" {
   description = "On-prem cross-cloud range advertised over BGP and allowed in."
 }
 
+variable "enable_test_vm" {
+  type        = bool
+  default     = true
+  description = "Deploy a test VM in the private subnet. Off => VM-less (test via 169.254.0.1 + BGP)."
+}
+
 variable "enable_crosscloud_test_vm" {
   type        = bool
   default     = false
-  description = "Also deploy a test VM in the cross-cloud subnet (to ping a 172.x address)."
+  description = "Also deploy a test VM in the cross-cloud subnet."
 }
 
 variable "onprem_public_ip" {

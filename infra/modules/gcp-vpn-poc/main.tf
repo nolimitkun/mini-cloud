@@ -126,8 +126,11 @@ resource "google_compute_firewall" "iap_ssh" {
   }
 }
 
-# --- Test VM with no external IP (private plane) ---
+# --- Optional test VM with no external IP (private plane) ---
+# Off by default: the tunnel can be tested VM-less by pinging the Cloud Router
+# BGP IP (169.254.0.1) and via the BGP session itself (TCP/179 over ESP).
 resource "google_compute_instance" "test" {
+  count        = var.enable_test_vm ? 1 : 0
   name         = "poc-test-vm"
   project      = var.project_id
   zone         = var.zone
