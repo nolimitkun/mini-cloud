@@ -51,7 +51,7 @@
 <rect x="392" y="300" width="256" height="202" rx="12" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.75"/>
 <text x="408" y="316" font-size="13" font-weight="500" fill="#27500A">VPC vpc-poc</text>
 <text x="408" y="333" font-size="11" fill="#3B6D11">private 10.48.0.0/24</text>
-<text x="408" y="349" font-size="11" fill="#3B6D11">x-cloud 172.19.16.0/24</text>
+<text x="408" y="349" font-size="11" fill="#3B6D11">x-cloud 192.168.50.0/24</text>
 
 <rect x="408" y="360" width="224" height="50" rx="9" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.75"/>
 <text x="520" y="378" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#085041">poc-test-vm</text>

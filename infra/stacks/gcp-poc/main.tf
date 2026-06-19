@@ -32,6 +32,10 @@ variable "enable_crosscloud_test_vm" {
   type    = bool
   default = false
 }
+variable "crosscloud_cidr" {
+  type    = string
+  default = "192.168.50.0/24" # PoC choice (non-overlapping home-style); prod plan uses 172.19.x
+}
 
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
@@ -40,6 +44,7 @@ module "vpn_poc" {
   onprem_public_ip          = var.onprem_public_ip
   onprem_lan_cidr           = var.onprem_lan_cidr
   shared_secret             = var.shared_secret
+  crosscloud_cidr           = var.crosscloud_cidr
   enable_crosscloud_test_vm = var.enable_crosscloud_test_vm
 }
 
