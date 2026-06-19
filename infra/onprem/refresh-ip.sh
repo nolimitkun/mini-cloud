@@ -23,7 +23,8 @@ sed -i "s|^onprem_public_ip *=.*|onprem_public_ip = \"$NEWIP\"|" "$STACK/terrafo
 
 echo "== 2/2 update on-prem strongSwan local id + restart tunnel =="
 if [ -f /etc/swanctl/swanctl.conf ]; then
-  sudo sed -i "s|\(local *{ auth = psk; id = \)[0-9.]\+|\1$NEWIP|" /etc/swanctl/swanctl.conf
+  # the old IP appears only as the local id; replace that value
+  sudo sed -i "s|${CURIP//./\\.}|$NEWIP|g" /etc/swanctl/swanctl.conf
   sudo swanctl --load-all
   sudo swanctl --terminate --ike gcp 2>/dev/null || true
   sudo swanctl --initiate --child gcp || true
