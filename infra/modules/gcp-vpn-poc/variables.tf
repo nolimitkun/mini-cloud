@@ -25,12 +25,6 @@ variable "crosscloud_cidr" {
   description = "Cross-cloud-plane subnet (resources reachable cross-cloud)."
 }
 
-variable "onprem_crosscloud_cidr" {
-  type        = string
-  default     = "172.16.0.0/24" # on-prem cross-cloud range (doc 02 §1.2)
-  description = "On-prem cross-cloud range advertised over BGP and allowed in."
-}
-
 variable "enable_test_vm" {
   type        = bool
   default     = true

@@ -106,7 +106,7 @@ resource "google_compute_firewall" "from_lan" {
   project       = var.project_id
   network       = google_compute_network.poc.id
   direction     = "INGRESS"
-  source_ranges = [var.onprem_lan_cidr, var.onprem_crosscloud_cidr]
+  source_ranges = [var.onprem_lan_cidr]
   allow { protocol = "icmp" }
   allow {
     protocol = "tcp"

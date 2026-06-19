@@ -40,9 +40,9 @@ circuit termination is in production.
 - **GCP spoke** = a VPC with **both IPAM planes** ([02 §1](02-network-design.md)) — a private subnet
   `10.48.0.0/24` and a cross-cloud subnet `192.168.50.0/24` — plus the **HA VPN gateway**, **Cloud
   Router**, and a test VM with no external IP.
-- **Routing:** BGP over the tunnel (link-local `169.254.0.0/30`). On-prem advertises its private LAN
-  `192.168.1.0/24` **and** its cross-cloud range `172.16.0.0/24`; GCP advertises both its subnets
-  (`10.48.0.0/24` + `192.168.50.0/24`). The PoC thus exercises the two-plane model end-to-end.
+- **Routing:** BGP over the tunnel (link-local `169.254.0.0/30`). On-prem advertises its LAN
+  `192.168.1.0/24`; GCP advertises both its subnets — private `10.48.0.0/24` and cross-cloud
+  `192.168.50.0/24`. Both GCP planes are learned and reachable from on-prem.
 
 ---
 
@@ -51,7 +51,6 @@ circuit termination is in production.
 | Item | Value (PoC default) | Notes |
 |------|--------------------|-------|
 | On-prem LAN (private) | `192.168.1.0/24` | Set to your real LAN range |
-| On-prem cross-cloud | `172.16.0.0/24` | Cross-cloud plane ([02 §1.2](02-network-design.md)) |
 | GCP private subnet | `10.48.0.0/24` | Private plane, from the GCP `/12` |
 | GCP cross-cloud subnet | `192.168.50.0/24` | PoC choice (non-overlapping home-style); prod plan uses `172.19.0.0/16` |
 | On-prem ASN | `65000` | Matches prod design |

@@ -27,7 +27,7 @@
 <text x="58" y="382">• WAN public IP</text>
 <text x="58" y="410">• UDP 500 / 4500 · ESP</text>
 <text x="58" y="438">• ip_forward = 1</text>
-<text x="58" y="466">• adv 192.168.1.0/24 + 172.16.0.0/24</text>
+<text x="58" y="466">• adv 192.168.1.0/24</text>
 </g>
 
 <!-- GCP container -->
@@ -59,7 +59,7 @@
 
 <g font-size="11" fill="#3B6D11">
 <text x="408" y="432">Firewall (ingress):</text>
-<text x="408" y="450">• allow 192.168.1.0/24 + 172.16.0.0/24</text>
+<text x="408" y="450">• allow 192.168.1.0/24</text>
 <text x="408" y="468">• allow IAP 35.235.240.0/20</text>
 </g>
 
