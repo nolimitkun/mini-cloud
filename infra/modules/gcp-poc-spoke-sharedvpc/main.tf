@@ -24,6 +24,13 @@ locals {
   project_id = var.create_project ? google_project.spoke[0].project_id : var.spoke_project_id
 }
 
+# Project number (for service-account members), works whether the project is
+# created here or adopted (create_project = false).
+data "google_project" "spoke" {
+  project_id = local.project_id
+  depends_on = [google_project.spoke]
+}
+
 resource "google_project_service" "compute" {
   project            = local.project_id
   service            = "compute.googleapis.com"
@@ -58,7 +65,7 @@ resource "google_compute_subnetwork_iam_member" "compute_sa" {
   region     = var.region
   subnetwork = google_compute_subnetwork.lakehouse.name
   role       = "roles/compute.networkUser"
-  member     = "serviceAccount:${google_project.spoke[0].number}-compute@developer.gserviceaccount.com"
+  member     = "serviceAccount:${data.google_project.spoke.number}-compute@developer.gserviceaccount.com"
 }
 
 resource "google_compute_subnetwork_iam_member" "cloudservices_sa" {
@@ -66,7 +73,7 @@ resource "google_compute_subnetwork_iam_member" "cloudservices_sa" {
   region     = var.region
   subnetwork = google_compute_subnetwork.lakehouse.name
   role       = "roles/compute.networkUser"
-  member     = "serviceAccount:${google_project.spoke[0].number}@cloudservices.gserviceaccount.com"
+  member     = "serviceAccount:${data.google_project.spoke.number}@cloudservices.gserviceaccount.com"
 }
 
 # Spoke test VM (in the service project) using the host subnet; no external IP.

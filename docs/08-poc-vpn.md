@@ -175,9 +175,23 @@ Enable it ([`stacks/gcp-poc`](../infra/stacks/gcp-poc)):
 # terraform.tfvars
 enable_spoke    = true
 billing_account = "<your-billing-account-id>"
+spoke_mode      = "peering"   # no org needed
 ```
 
-Verified E2E: `ping 10.48.16.2` from the LAN succeeds (on-prem → tunnel → hub → peering → spoke).
+**With a GCP organization** (see [doc 04](04-security-baseline.md)) you can instead use **Shared VPC**
+(the production model) and enforce **Org Policy** guardrails:
+
+```hcl
+spoke_mode = "shared_vpc"     # hub = Shared VPC host, spoke = service project
+org_id     = "<org-id>"       # needs roles/compute.xpnAdmin on the org
+```
+- `spoke_mode = shared_vpc` puts the spoke subnet **in the hub VPC** (no peering); the Cloud Router
+  advertises it natively.
+- Apply [`infra/policy/gcp`](../infra/policy/gcp) (needs `roles/orgpolicy.policyAdmin`) to enforce
+  deny-external-IP, region-lock, storage public-access-prevention, skip-default-network org-wide.
+
+Verified E2E in both modes: `ping 10.48.16.2` from the LAN succeeds
+(on-prem → tunnel → hub → peering **or** Shared VPC → spoke VM).
 
 ---
 

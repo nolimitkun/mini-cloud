@@ -59,6 +59,10 @@ variable "spoke_cidr" {
   type    = string
   default = "10.48.16.0/24"
 }
+variable "spoke_create_project" {
+  type    = bool
+  default = true # set false to adopt an existing spoke project instead of creating it
+}
 variable "org_id" {
   type    = string
   default = "" # set to the GCP org id (e.g. 1001419803488) to place the spoke under the org
@@ -107,6 +111,7 @@ module "spoke_shared" {
   spoke_project_id  = var.spoke_project_id
   billing_account   = var.billing_account
   org_id            = var.org_id
+  create_project    = var.spoke_create_project
   region            = var.region
   spoke_cidr        = var.spoke_cidr
   host_project_id   = var.project_id
