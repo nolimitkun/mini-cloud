@@ -72,7 +72,7 @@ variable "spoke_mode" {
   default = "peering" # "peering" (no org needed) or "shared_vpc" (needs org + compute.xpnAdmin)
   validation {
     condition     = contains(["peering", "shared_vpc"], var.spoke_mode)
-    error_message = "spoke_mode must be 'peering' or 'shared_vpc'."
+    error_message = "The spoke_mode must be either 'peering' or 'shared_vpc'."
   }
 }
 

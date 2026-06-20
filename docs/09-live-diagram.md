@@ -41,10 +41,30 @@ firewalls, the Shared VPC spoke + VM) plus the injected **on-prem** node and its
 
 ## Automating it
 
-- **Locally:** `make diagram` after each apply.
-- **CI:** regenerate from state in a credentialed job, or from HCL (`inframap generate <dir>`, no
-  creds) on every push so the committed SVG tracks the code. (CI here runs offline `validate`; a
-  diagram job would need state access or the HCL variant.)
+**Post-apply hook (works today):**
 
-Tooling: `infra/diagram/gen-live-diagram.sh` (wrapper) + `make diagram`. Requires `inframap`
-(`~/.local/bin`) and `graphviz`.
+```bash
+cd infra
+make apply-poc      # terraform apply gcp-poc, then regenerate the live SVG
+```
+
+This keeps the committed `live-gcp-poc.svg` in lockstep with the deployed resources — apply and the
+diagram refresh in one step.
+
+**Why not a CI-on-push job?** Two dead ends, both verified:
+- **HCL mode** (`inframap generate --hcl <stack>`, no creds) returns an **empty graph** here — the
+  stack's resources live in `modules/`, and Inframap's HCL parser doesn't expand module sources.
+- **State mode** needs the `terraform.tfstate`, which is local + gitignored. CI could only regenerate
+  if the stack used a **remote backend** (GCS) and the job had GCP credentials.
+
+So if you later move the PoC to a remote backend, a CI job becomes viable:
+
+```yaml
+# sketch — needs a GCS backend + GOOGLE_CREDENTIALS secret
+- run: terraform -chdir=infra/stacks/gcp-poc init && terraform ... state pull > state.json
+- run: inframap generate --tfstate --raw state.json | dot -Tsvg -o docs/diagrams/live-gcp-poc.svg
+- run: git commit -am "chore: refresh live diagram [skip ci]" && git push
+```
+
+Until then, the **post-apply hook is the mechanism**. Tooling: `infra/diagram/gen-live-diagram.sh` +
+`make diagram` / `make apply-poc`. Requires `inframap` (`~/.local/bin`) and `graphviz`.

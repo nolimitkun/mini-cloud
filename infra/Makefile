@@ -10,7 +10,7 @@ STACKS      := aws azure gcp
 STACK_DIRS  := $(addprefix stacks/,$(STACKS))
 TF          := terraform
 
-.PHONY: fmt fmt-check validate plan plan-all $(addprefix plan-,$(STACKS)) clean diagram
+.PHONY: fmt fmt-check validate plan plan-all $(addprefix plan-,$(STACKS)) clean diagram apply-poc
 
 fmt:
 	$(TF) fmt -recursive .
@@ -45,6 +45,12 @@ diagram:
 	@command -v dot >/dev/null || { echo "install graphviz (dot)"; exit 1; }
 	@test -f "$(STATE)" || { echo "no state at $(STATE) — apply first"; exit 1; }
 	./diagram/gen-live-diagram.sh "$(STATE)" ../docs/diagrams/live-gcp-poc.svg
+
+# Post-apply hook: apply the GCP PoC, then regenerate the live diagram so the
+# committed SVG always tracks the deployed resources.
+apply-poc:
+	$(TF) -chdir=stacks/gcp-poc apply
+	$(MAKE) diagram
 
 clean:
 	find . -type d -name '.terraform' -prune -exec rm -rf {} +
