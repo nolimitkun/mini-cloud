@@ -14,6 +14,12 @@ variable "create_project" {
   default = true
 }
 
+variable "org_id" {
+  type        = string
+  default     = ""
+  description = "GCP organization id to place the project under (empty = no org)."
+}
+
 variable "region" {
   type    = string
   default = "europe-west1"

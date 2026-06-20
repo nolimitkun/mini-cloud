@@ -15,6 +15,7 @@ resource "google_project" "spoke" {
   name                = var.spoke_project_id
   project_id          = var.spoke_project_id
   billing_account     = var.billing_account
+  org_id              = var.org_id != "" ? var.org_id : null
   auto_create_network = false # no default network
   deletion_policy     = "DELETE"
 }

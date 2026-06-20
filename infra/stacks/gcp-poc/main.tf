@@ -59,6 +59,10 @@ variable "spoke_cidr" {
   type    = string
   default = "10.48.16.0/24"
 }
+variable "org_id" {
+  type    = string
+  default = "" # set to the GCP org id (e.g. 1001419803488) to place the spoke under the org
+}
 
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
@@ -79,6 +83,7 @@ module "spoke" {
   source           = "../../modules/gcp-poc-spoke"
   spoke_project_id = var.spoke_project_id
   billing_account  = var.billing_account
+  org_id           = var.org_id
   region           = var.region
   spoke_cidr       = var.spoke_cidr
   hub_network      = module.vpn_poc.network_self_link
