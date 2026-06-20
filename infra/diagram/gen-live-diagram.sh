@@ -10,7 +10,7 @@ set -euo pipefail
 
 STATE="${1:?usage: gen-live-diagram.sh <tfstate> <out.svg>}"
 OUT="${2:?usage: gen-live-diagram.sh <tfstate> <out.svg>}"
-INFRAMAP="${INFRAMAP:-$HOME/.local/bin/inframap}"
+INFRAMAP="${INFRAMAP:-$(command -v inframap || echo "$HOME/.local/bin/inframap")}"
 TMP="$(mktemp)"
 
 # Cloud graph from live state (--raw keeps every resource; GCP isn't covered by

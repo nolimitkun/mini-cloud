@@ -51,20 +51,19 @@ make apply-poc      # terraform apply gcp-poc, then regenerate the live SVG
 This keeps the committed `live-gcp-poc.svg` in lockstep with the deployed resources — apply and the
 diagram refresh in one step.
 
-**Why not a CI-on-push job?** Two dead ends, both verified:
-- **HCL mode** (`inframap generate --hcl <stack>`, no creds) returns an **empty graph** here — the
-  stack's resources live in `modules/`, and Inframap's HCL parser doesn't expand module sources.
-- **State mode** needs the `terraform.tfstate`, which is local + gitignored. CI could only regenerate
-  if the stack used a **remote backend** (GCS) and the job had GCP credentials.
+**CI-on-push (enabled):** the gcp-poc stack now uses a **GCS remote backend**
+(`gs://mini-cloud-499820-tfstate`), so [`.github/workflows/diagram.yml`](../.github/workflows/diagram.yml)
+regenerates the SVG on every change to `infra/**` and commits it back:
 
-So if you later move the PoC to a remote backend, a CI job becomes viable:
+1. pulls the state from GCS, runs Inframap + Graphviz, writes `docs/diagrams/live-gcp-poc.svg`;
+2. commits with `[skip ci]` (the commit touches `docs/`, not `infra/`, so it doesn't re-trigger).
 
-```yaml
-# sketch — needs a GCS backend + GOOGLE_CREDENTIALS secret
-- run: terraform -chdir=infra/stacks/gcp-poc init && terraform ... state pull > state.json
-- run: inframap generate --tfstate --raw state.json | dot -Tsvg -o docs/diagrams/live-gcp-poc.svg
-- run: git commit -am "chore: refresh live diagram [skip ci]" && git push
-```
+**One-time setup:** add a repo secret **`GOOGLE_CREDENTIALS`** = a service-account key JSON with
+**Storage Object Viewer** on the state bucket (read is enough — the diagram only pulls state). Without
+the secret the job no-ops, so forks/PRs never fail.
 
-Until then, the **post-apply hook is the mechanism**. Tooling: `infra/diagram/gen-live-diagram.sh` +
-`make diagram` / `make apply-poc`. Requires `inframap` (`~/.local/bin`) and `graphviz`.
+> HCL mode (no creds) was tried and rejected: it returns an empty graph because the stack's resources
+> live in `modules/` and Inframap's HCL parser doesn't expand module sources — hence the state-based job.
+
+Tooling: `infra/diagram/gen-live-diagram.sh` + `make diagram` / `make apply-poc`. Requires `inframap`
+and `graphviz`.

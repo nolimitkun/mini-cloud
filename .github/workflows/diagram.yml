@@ -1,0 +1,69 @@
+name: live-diagram
+
+# Regenerate docs/diagrams/live-gcp-poc.svg from the GCP PoC remote state on every
+# change, and commit it back so the committed diagram tracks deployed resources.
+#
+# Requires a repo secret GOOGLE_CREDENTIALS = a service-account key JSON with read
+# access to the gs://mini-cloud-499820-tfstate bucket (Storage Object Viewer).
+# Without the secret the job no-ops (so forks/PRs don't fail).
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/diagram.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagram:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: guard
+        env:
+          CREDS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: |
+          if [ -n "$CREDS" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else
+            echo "ok=false" >> "$GITHUB_OUTPUT"; echo "No GOOGLE_CREDENTIALS secret — skipping."; fi
+
+      - if: steps.guard.outputs.ok == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.7"
+
+      - if: steps.guard.outputs.ok == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+      - if: steps.guard.outputs.ok == 'true'
+        name: install graphviz + inframap
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq graphviz
+          curl -fsSL -o /tmp/im.tgz https://github.com/cycloidio/inframap/releases/download/v0.8.0/inframap-linux-amd64.tar.gz
+          tar -xzf /tmp/im.tgz -C /tmp
+          sudo install -m755 /tmp/inframap-linux-amd64 /usr/local/bin/inframap
+
+      - if: steps.guard.outputs.ok == 'true'
+        name: regenerate live diagram
+        run: |
+          terraform -chdir=infra/stacks/gcp-poc init -input=false
+          terraform -chdir=infra/stacks/gcp-poc state pull > /tmp/state.json
+          infra/diagram/gen-live-diagram.sh /tmp/state.json docs/diagrams/live-gcp-poc.svg
+          rm -f /tmp/state.json
+
+      - if: steps.guard.outputs.ok == 'true'
+        name: commit if changed
+        run: |
+          if ! git diff --quiet -- docs/diagrams/live-gcp-poc.svg; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add docs/diagrams/live-gcp-poc.svg
+            git commit -m "chore: refresh live diagram [skip ci]"
+            git push
+          else
+            echo "diagram unchanged."
+          fi

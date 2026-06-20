@@ -38,13 +38,14 @@ plan-%:
 	$(TF) -chdir=stacks/$* init -input=false
 	$(TF) -chdir=stacks/$* plan -input=false
 
-# Live diagram from the GCP PoC state (Inframap + Graphviz). Regenerate after any
-# apply so the SVG follows the real resources. STATE overrides the source state.
-STATE ?= stacks/gcp-poc/terraform.tfstate
+# Live diagram from the GCP PoC state (Inframap + Graphviz). Works with local or
+# remote (GCS) state — it pulls the current state, so it follows every apply.
+DIAGRAM_STACK ?= stacks/gcp-poc
 diagram:
 	@command -v dot >/dev/null || { echo "install graphviz (dot)"; exit 1; }
-	@test -f "$(STATE)" || { echo "no state at $(STATE) — apply first"; exit 1; }
-	./diagram/gen-live-diagram.sh "$(STATE)" ../docs/diagrams/live-gcp-poc.svg
+	$(TF) -chdir=$(DIAGRAM_STACK) state pull > /tmp/poc-state.json
+	./diagram/gen-live-diagram.sh /tmp/poc-state.json ../docs/diagrams/live-gcp-poc.svg
+	@rm -f /tmp/poc-state.json
 
 # Post-apply hook: apply the GCP PoC, then regenerate the live diagram so the
 # committed SVG always tracks the deployed resources.
