@@ -10,7 +10,7 @@ STACKS      := aws azure gcp
 STACK_DIRS  := $(addprefix stacks/,$(STACKS))
 TF          := terraform
 
-.PHONY: fmt fmt-check validate plan plan-all $(addprefix plan-,$(STACKS)) clean
+.PHONY: fmt fmt-check validate plan plan-all $(addprefix plan-,$(STACKS)) clean diagram
 
 fmt:
 	$(TF) fmt -recursive .
@@ -37,6 +37,14 @@ plan-all: $(addprefix plan-,$(STACKS))
 plan-%:
 	$(TF) -chdir=stacks/$* init -input=false
 	$(TF) -chdir=stacks/$* plan -input=false
+
+# Live diagram from the GCP PoC state (Inframap + Graphviz). Regenerate after any
+# apply so the SVG follows the real resources. STATE overrides the source state.
+STATE ?= stacks/gcp-poc/terraform.tfstate
+diagram:
+	@command -v dot >/dev/null || { echo "install graphviz (dot)"; exit 1; }
+	@test -f "$(STATE)" || { echo "no state at $(STATE) — apply first"; exit 1; }
+	./diagram/gen-live-diagram.sh "$(STATE)" ../docs/diagrams/live-gcp-poc.svg
 
 clean:
 	find . -type d -name '.terraform' -prune -exec rm -rf {} +
