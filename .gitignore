@@ -23,6 +23,12 @@ override.tf.json
 *.key
 .env
 .envrc
+# Service-account keys (GCP/cloud) — never commit
+key.json
+*-key.json
+*-sa.json
+*.serviceaccount.json
+credentials*.json
 
 # OS / editor
 .DS_Store
