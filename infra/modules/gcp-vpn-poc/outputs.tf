@@ -42,6 +42,11 @@ output "network_self_link" {
   value       = google_compute_network.poc.self_link
 }
 
+output "network_name" {
+  description = "Hub VPC name (for Shared VPC spoke subnets)."
+  value       = google_compute_network.poc.name
+}
+
 output "vpn_tunnel_name" {
   value = google_compute_vpn_tunnel.t0.name
 }

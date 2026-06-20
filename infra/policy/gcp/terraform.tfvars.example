@@ -1,0 +1,3 @@
+# GCP Org Policy guardrails — copy to terraform.tfvars and fill.
+org_id        = "1001419803488"      # mini-data.com
+quota_project = "mini-cloud-499820"  # any project you own, for API quota
