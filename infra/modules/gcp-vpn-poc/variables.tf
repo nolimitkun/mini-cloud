@@ -25,6 +25,12 @@ variable "crosscloud_cidr" {
   description = "Cross-cloud-plane subnet (resources reachable cross-cloud)."
 }
 
+variable "advertised_extra_ranges" {
+  type        = list(string)
+  default     = []
+  description = "Extra prefixes (e.g. peered spoke subnets) for the Cloud Router to advertise to on-prem."
+}
+
 variable "enable_test_vm" {
   type        = bool
   default     = true

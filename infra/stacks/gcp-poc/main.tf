@@ -42,6 +42,24 @@ variable "crosscloud_cidr" {
   default = "192.168.50.0/24" # PoC choice (non-overlapping home-style); prod plan uses 172.19.x
 }
 
+# --- GCP hub-and-spoke: a separate spoke project peered to the hub VPC ---
+variable "enable_spoke" {
+  type    = bool
+  default = false
+}
+variable "spoke_project_id" {
+  type    = string
+  default = "mini-cloud-lakehouse"
+}
+variable "billing_account" {
+  type    = string
+  default = ""
+}
+variable "spoke_cidr" {
+  type    = string
+  default = "10.48.16.0/24"
+}
+
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
   project_id                = var.project_id
@@ -52,6 +70,19 @@ module "vpn_poc" {
   crosscloud_cidr           = var.crosscloud_cidr
   enable_test_vm            = var.enable_test_vm
   enable_crosscloud_test_vm = var.enable_crosscloud_test_vm
+  # advertise the spoke subnet to on-prem when the spoke is enabled
+  advertised_extra_ranges = var.enable_spoke ? [var.spoke_cidr] : []
+}
+
+module "spoke" {
+  count            = var.enable_spoke ? 1 : 0
+  source           = "../../modules/gcp-poc-spoke"
+  spoke_project_id = var.spoke_project_id
+  billing_account  = var.billing_account
+  region           = var.region
+  spoke_cidr       = var.spoke_cidr
+  hub_network      = module.vpn_poc.network_self_link
+  onprem_lan_cidr  = var.onprem_lan_cidr
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }
@@ -63,3 +94,6 @@ output "cloud_router_name" { value = module.vpn_poc.cloud_router_name }
 output "private_subnet_cidr" { value = module.vpn_poc.private_subnet_cidr }
 output "crosscloud_subnet_cidr" { value = module.vpn_poc.crosscloud_subnet_cidr }
 output "crosscloud_test_vm_internal_ip" { value = module.vpn_poc.crosscloud_test_vm_internal_ip }
+output "spoke_project_id" { value = var.enable_spoke ? module.spoke[0].project_id : null }
+output "spoke_subnet_cidr" { value = var.enable_spoke ? module.spoke[0].spoke_subnet_cidr : null }
+output "spoke_vm_internal_ip" { value = var.enable_spoke ? module.spoke[0].spoke_vm_internal_ip : null }

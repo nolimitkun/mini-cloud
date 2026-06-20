@@ -37,6 +37,11 @@ output "cloud_router_name" {
   value = google_compute_router.cr.name
 }
 
+output "network_self_link" {
+  description = "Hub VPC self-link (for peering spokes)."
+  value       = google_compute_network.poc.self_link
+}
+
 output "vpn_tunnel_name" {
   value = google_compute_vpn_tunnel.t0.name
 }

@@ -157,6 +157,30 @@ SSH the test VM without a public IP via IAP: `gcloud compute ssh <vm> --tunnel-t
 
 ---
 
+## 6.1 GCP hub-and-spoke (optional)
+
+A second GCP project (`mini-cloud-lakehouse`) can join as a **spoke** of the hub VPC, mirroring the
+production Tier-2 hub-and-spoke. Standalone projects (no org) can't use Shared VPC, so the spoke uses
+**VPC peering**:
+
+- Spoke project `mini-cloud-lakehouse` → its own `vpc-lakehouse` (subnet `10.48.16.0/24`), peered to
+  the hub `vpc-poc` with custom-route import/export.
+- The hub Cloud Router advertises the spoke subnet to on-prem (`advertised_extra_ranges`); on-prem
+  reaches the spoke VM via tunnel → hub → peering. The spoke learns on-prem routes back over peering.
+- Spoke VM `lakehouse-test-vm` has **no external IP**; reachable only over the tunnel.
+
+Enable it ([`stacks/gcp-poc`](../infra/stacks/gcp-poc)):
+
+```hcl
+# terraform.tfvars
+enable_spoke    = true
+billing_account = "<your-billing-account-id>"
+```
+
+Verified E2E: `ping 10.48.16.2` from the LAN succeeds (on-prem → tunnel → hub → peering → spoke).
+
+---
+
 ## 7. From PoC to production
 
 | PoC | Production target |

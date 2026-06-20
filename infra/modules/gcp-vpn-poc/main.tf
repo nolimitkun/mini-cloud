@@ -62,8 +62,14 @@ resource "google_compute_router" "cr" {
   network = google_compute_network.poc.id
   bgp {
     asn = var.cloud_router_asn
-    # default advertise_mode = DEFAULT advertises all VPC subnets — both the
-    # private (10.48.0.0/24) and cross-cloud (172.19.16.0/24) subnets.
+    # DEFAULT advertises the VPC's own subnets (private + cross-cloud).
+    # When peered spokes exist, switch to CUSTOM to also advertise their ranges.
+    advertise_mode    = length(var.advertised_extra_ranges) > 0 ? "CUSTOM" : "DEFAULT"
+    advertised_groups = length(var.advertised_extra_ranges) > 0 ? ["ALL_SUBNETS"] : []
+    dynamic "advertised_ip_ranges" {
+      for_each = var.advertised_extra_ranges
+      content { range = advertised_ip_ranges.value }
+    }
   }
 }
 
