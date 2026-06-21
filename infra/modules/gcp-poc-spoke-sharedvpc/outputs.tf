@@ -7,6 +7,6 @@ output "spoke_subnet_cidr" {
 }
 
 output "spoke_vm_internal_ip" {
-  description = "Private IP of the spoke test VM (in the host subnet, reachable over the tunnel)."
-  value       = google_compute_instance.spoke_test.network_interface[0].network_ip
+  description = "No test VM deployed — spoke subnet is ready for workloads."
+  value       = null
 }
