@@ -76,18 +76,5 @@ resource "google_compute_subnetwork_iam_member" "cloudservices_sa" {
   member     = "serviceAccount:${data.google_project.spoke.number}@cloudservices.gserviceaccount.com"
 }
 
-# Spoke test VM (in the service project) using the host subnet; no external IP.
-resource "google_compute_instance" "spoke_test" {
-  project      = local.project_id
-  name         = "lakehouse-test-vm"
-  zone         = var.zone
-  machine_type = "e2-micro"
-  boot_disk {
-    initialize_params { image = "debian-cloud/debian-12" }
-  }
-  network_interface {
-    subnetwork         = google_compute_subnetwork.lakehouse.self_link
-    subnetwork_project = var.host_project_id
-  }
-  depends_on = [google_compute_shared_vpc_service_project.spoke]
-}
+# No test VM — spoke subnet is ready for workloads. The Shared VPC attachment,
+# subnet, and IAM bindings remain so the spoke is immediately usable.
