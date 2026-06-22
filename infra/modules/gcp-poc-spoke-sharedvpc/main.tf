@@ -37,6 +37,12 @@ resource "google_project_service" "compute" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "storage" {
+  project            = local.project_id
+  service            = "storage.googleapis.com"
+  disable_on_destroy = false
+}
+
 # Enable the hub project as a Shared VPC host (needs roles/compute.xpnAdmin on the org).
 resource "google_compute_shared_vpc_host_project" "host" {
   project = var.host_project_id
@@ -78,3 +84,14 @@ resource "google_compute_subnetwork_iam_member" "cloudservices_sa" {
 
 # No test VM — spoke subnet is ready for workloads. The Shared VPC attachment,
 # subnet, and IAM bindings remain so the spoke is immediately usable.
+
+# Spoke data bucket — private, no public access, UBLA enforced. Org policy
+# storage.publicAccessPrevention adds a second lock above this resource config.
+resource "google_storage_bucket" "data" {
+  project                     = local.project_id
+  name                        = var.storage_bucket_name
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  depends_on                  = [google_project_service.storage]
+}
