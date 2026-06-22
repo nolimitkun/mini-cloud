@@ -42,3 +42,8 @@ variable "host_network_name" {
   type        = string
   description = "Hub VPC name (host network) to create the spoke subnet in."
 }
+
+variable "storage_bucket_name" {
+  type        = string
+  description = "Name for the spoke's private GCS data bucket (must be globally unique)."
+}

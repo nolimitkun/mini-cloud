@@ -75,6 +75,10 @@ variable "spoke_mode" {
     error_message = "The spoke_mode must be either 'peering' or 'shared_vpc'."
   }
 }
+variable "storage_bucket_name" {
+  type    = string
+  default = "mini-cloud-lakehouse-data"
+}
 
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
@@ -116,6 +120,7 @@ module "spoke_shared" {
   spoke_cidr        = var.spoke_cidr
   host_project_id   = var.project_id
   host_network_name = module.vpn_poc.network_name
+  storage_bucket_name = var.storage_bucket_name
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }
