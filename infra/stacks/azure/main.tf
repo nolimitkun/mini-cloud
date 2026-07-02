@@ -25,7 +25,7 @@ variable "location" {
 }
 
 locals {
-  tags     = { project = "hybrid-cloud", tier = "landing-zone", cloud = "azure" }
+  tags = { project = "hybrid-cloud", tier = "landing-zone", cloud = "azure" }
 }
 
 module "hub" {
