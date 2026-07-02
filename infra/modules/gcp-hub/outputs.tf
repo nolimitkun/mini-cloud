@@ -3,6 +3,11 @@ output "host_project_id" {
   value       = google_compute_network.hub.project
 }
 
+output "host_network_name" {
+  description = "Hub VPC network name (Shared VPC host network) for spoke subnet placement."
+  value       = google_compute_network.hub.name
+}
+
 output "network_self_link" {
   description = "Hub VPC self link for service-project subnets."
   value       = google_compute_network.hub.self_link

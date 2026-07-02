@@ -18,14 +18,19 @@ variable "express_route_circuit_id" {
   type        = string
 }
 
+variable "location" {
+  description = "Azure region for this landing zone (doc D3)."
+  type        = string
+  default     = "westeurope"
+}
+
 locals {
-  location = "westeurope"
-  tags     = { project = "hybrid-cloud", tier = "landing-zone", cloud = "azure" }
+  tags = { project = "hybrid-cloud", tier = "landing-zone", cloud = "azure" }
 }
 
 module "hub" {
   source                   = "../../modules/azure-hub"
-  location                 = local.location
+  location                 = var.location
   hub_cidr                 = "10.32.0.0/20"
   express_route_circuit_id = var.express_route_circuit_id
   tags                     = local.tags
@@ -39,7 +44,7 @@ module "spoke" {
     shared  = { private = "10.32.48.0/20", xcloud = "172.18.48.0/24" }
   }
   name                = each.key
-  location            = local.location
+  location            = var.location
   spoke_cidr          = each.value.private
   crosscloud_cidr     = each.value.xcloud
   hub_vnet_id         = module.hub.hub_vnet_id
