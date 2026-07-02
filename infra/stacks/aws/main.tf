@@ -25,8 +25,15 @@ provider "aws" {
   # assume_role into the network account  # TODO
 }
 
+# Derive AZs from the target region so overriding var.region stays consistent
+# with the subnets (avoids the hardcoded eu-west-1a/b module defaults).
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 locals {
   cloud_supernet = "10.16.0.0/12"
+  azs            = slice(data.aws_availability_zones.available.names, 0, 2)
   tags           = { project = "hybrid-cloud", tier = "landing-zone", cloud = "aws" }
 }
 
@@ -37,6 +44,7 @@ module "hub" {
   hub_cidr         = "10.16.0.0/20"
   amazon_side_asn  = 65010
   dx_connection_id = var.dx_connection_id
+  firewall_azs     = local.azs
   tags             = local.tags
 }
 
@@ -52,5 +60,6 @@ module "spoke" {
   spoke_cidr         = each.value.private
   crosscloud_cidr    = each.value.xcloud
   transit_gateway_id = module.hub.transit_gateway_id
+  azs                = local.azs
   tags               = local.tags
 }
