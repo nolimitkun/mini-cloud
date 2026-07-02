@@ -9,14 +9,20 @@ terraform {
   # backend "s3" { ... }  # TODO: remote state (S3 + DynamoDB lock)
 }
 
-provider "aws" {
-  region = "eu-west-1"
-  # assume_role into the network account  # TODO
+variable "region" {
+  description = "AWS region for this landing zone (doc D3)."
+  type        = string
+  default     = "eu-west-1"
 }
 
 variable "dx_connection_id" {
   description = "Dedicated Direct Connect connection id (ordered out-of-band, doc 03 §3)."
   type        = string
+}
+
+provider "aws" {
+  region = var.region
+  # assume_role into the network account  # TODO
 }
 
 locals {
@@ -26,7 +32,7 @@ locals {
 
 module "hub" {
   source           = "../../modules/aws-hub"
-  region           = "eu-west-1"
+  region           = var.region
   cloud_supernet   = local.cloud_supernet
   hub_cidr         = "10.16.0.0/20"
   amazon_side_asn  = 65010

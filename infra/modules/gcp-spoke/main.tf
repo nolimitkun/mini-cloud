@@ -19,7 +19,7 @@ resource "google_compute_subnetwork" "spoke" {
   name                     = "subnet-${var.name}"
   project                  = var.host_project_id
   region                   = var.region
-  network                  = "vpc-hub"
+  network                  = var.host_network_name
   ip_cidr_range            = var.spoke_cidr
   private_ip_google_access = true
 }
@@ -29,7 +29,7 @@ resource "google_compute_subnetwork" "crosscloud" {
   name                     = "subnet-${var.name}-xcloud"
   project                  = var.host_project_id
   region                   = var.region
-  network                  = "vpc-hub"
+  network                  = var.host_network_name
   ip_cidr_range            = var.crosscloud_cidr
   private_ip_google_access = true
 }
