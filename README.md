@@ -33,6 +33,8 @@ infra/     Terraform skeleton: hub+spoke modules ×3 clouds, policy guardrails, 
 - **Deploy it:** [infra/README.md](infra/README.md) — modules, stacks, `make` workflow.
 - **Try it cheaply (PoC):** [docs/08-poc-vpn.md](docs/08-poc-vpn.md) — LAN as on-prem + site-to-site
   VPN to GCP (no dedicated circuit), with runnable Terraform + strongSwan config.
+- **Lakehouse PoC:** [docs/10-lakehouse-poc.md](docs/10-lakehouse-poc.md) — GCS data lake +
+  Dataplex Knowledge Catalog + Iceberg Runtime Catalog + BigLake, deployed in the spoke project.
 
 ## Quick start (offline checks)
 
