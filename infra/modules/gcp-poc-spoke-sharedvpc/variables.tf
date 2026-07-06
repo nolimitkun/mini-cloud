@@ -47,3 +47,26 @@ variable "storage_bucket_name" {
   type        = string
   description = "Name for the spoke's private GCS data bucket (must be globally unique)."
 }
+
+# --- Lakehouse ---
+
+variable "enable_lakehouse" {
+  type        = bool
+  default     = false
+  description = "Enable Dataplex Lakehouse (Lake, Zones, Managed Folders, BigLake)."
+}
+
+variable "datasets" {
+  type = map(object({
+    description = optional(string, "")
+    feeders     = optional(list(string), []) # SA emails with objectAdmin on this dataset
+  }))
+  default     = {}
+  description = "Datasets to create as managed folders. Key = dataset name, value = { description, feeders }."
+}
+
+variable "bigquery_dataset_id" {
+  type        = string
+  default     = "lakehouse_catalog"
+  description = "BigQuery dataset ID for lakehouse Iceberg managed tables."
+}
