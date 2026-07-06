@@ -117,6 +117,22 @@ resource "google_project_service" "bigqueryconnection" {
   disable_on_destroy = false
 }
 
+# BigQuery core API — required for the lakehouse dataset resource.
+resource "google_project_service" "bigquery" {
+  count              = var.enable_lakehouse ? 1 : 0
+  project            = local.project_id
+  service            = "bigquery.googleapis.com"
+  disable_on_destroy = false
+}
+
+# BigLake API — required for the Iceberg REST catalog (created via gcloud).
+resource "google_project_service" "biglake" {
+  count              = var.enable_lakehouse ? 1 : 0
+  project            = local.project_id
+  service            = "biglake.googleapis.com"
+  disable_on_destroy = false
+}
+
 # Dataplex Lake — top-level logical container.
 resource "google_dataplex_lake" "lakehouse" {
   count        = var.enable_lakehouse ? 1 : 0
@@ -202,15 +218,26 @@ resource "google_bigquery_connection" "biglake" {
   depends_on = [google_project_service.bigqueryconnection]
 }
 
-# Grant the BigLake connection's service agent objectViewer on each managed folder
-# so BigLake managed Iceberg tables can read from GCS via the connection.
-resource "google_storage_managed_folder_iam_member" "biglake_reader" {
+# Grant the BigLake connection's service agent objectUser (read + write + delete)
+# on each managed folder so BigLake can create/write/delete objects for managed
+# Iceberg tables via the connection. objectViewer is read-only and cannot back
+# CREATE TABLE ... OPTIONS(table_format='ICEBERG') or loads into managed tables.
+resource "google_storage_managed_folder_iam_member" "biglake_writer" {
   for_each = var.enable_lakehouse ? var.datasets : {}
 
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.key].name
-  role           = "roles/storage.objectViewer"
+  role           = "roles/storage.objectUser"
   member         = "serviceAccount:${google_bigquery_connection.biglake[0].cloud_resource[0].service_account_id}"
+}
+
+# BigQuery also requires bucket metadata access on the connection SA for managed
+# Iceberg tables; legacyBucketReader is a bucket-level role, so grant it there.
+resource "google_storage_bucket_iam_member" "biglake_bucket_reader" {
+  count  = var.enable_lakehouse ? 1 : 0
+  bucket = google_storage_bucket.data.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_bigquery_connection.biglake[0].cloud_resource[0].service_account_id}"
 }
 
 # BigQuery dataset for lakehouse catalog — where BigLake Iceberg tables live.
@@ -220,7 +247,7 @@ resource "google_bigquery_dataset" "lakehouse" {
   location    = var.region
   project     = local.project_id
   description = "Lakehouse catalog — BigLake Iceberg managed tables"
-  depends_on  = [google_project_service.bigqueryconnection]
+  depends_on  = [google_project_service.bigquery]
 }
 
 # ============================================================================
@@ -243,7 +270,8 @@ resource "google_bigquery_dataset" "lakehouse" {
 resource "null_resource" "iceberg_catalog" {
   count = var.enable_lakehouse ? 1 : 0
   triggers = {
-    bucket = google_storage_bucket.data.name
+    bucket  = google_storage_bucket.data.name
+    project = local.project_id
   }
   provisioner "local-exec" {
     command     = <<-EOT
@@ -256,13 +284,14 @@ resource "null_resource" "iceberg_catalog" {
     EOT
     interpreter = ["bash", "-c"]
   }
-  # destroy provisioner: can only reference self.triggers.
-  # Hardcoded project — acceptable for this PoC module.
+  # destroy provisioner: can only reference self.triggers, so the project is
+  # captured in triggers above and used here to target the actual spoke project.
   provisioner "local-exec" {
     when        = destroy
-    command     = "gcloud alpha biglake iceberg catalogs delete ${self.triggers.bucket} --project=mini-cloud-lakehouse --quiet || true"
+    command     = "gcloud alpha biglake iceberg catalogs delete ${self.triggers.bucket} --project=${self.triggers.project} --quiet || true"
     interpreter = ["bash", "-c"]
   }
+  depends_on = [google_project_service.biglake]
 }
 
 # Fetch the catalog's credential-vending service account.
@@ -278,18 +307,19 @@ data "external" "iceberg_catalog_sa" {
   depends_on = [null_resource.iceberg_catalog]
 }
 
-# Grant the Iceberg catalog's credential-vending SA objectViewer on each
-# managed folder, so open-source engines can read data through the catalog
-# without needing their own GCS credentials.
+# Grant the Iceberg catalog's credential-vending SA objectUser on each managed
+# folder. The runtime catalog needs write access to create namespaces/tables and
+# write Iceberg metadata; the downscoped credentials it vends to Spark/Trino are
+# bounded by this grant, so objectViewer would leave those jobs read-only.
 #
 # Note: the SA is computed at apply time (via data.external). The for_each
 # iterates var.datasets unconditionally; on first apply the null_resource
 # must be targeted separately to create the catalog before this resource
 # can resolve the member attribute.
-resource "google_storage_managed_folder_iam_member" "iceberg_catalog_reader" {
+resource "google_storage_managed_folder_iam_member" "iceberg_catalog_writer" {
   for_each       = var.enable_lakehouse ? var.datasets : {}
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.key].name
-  role           = "roles/storage.objectViewer"
+  role           = "roles/storage.objectUser"
   member         = "serviceAccount:${try(data.external.iceberg_catalog_sa[0].result.biglake_service_account, "")}"
 }
