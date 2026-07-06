@@ -80,6 +80,34 @@ variable "storage_bucket_name" {
   default = "mini-cloud-lakehouse-data"
 }
 
+# --- Lakehouse ---
+
+variable "enable_lakehouse" {
+  type    = bool
+  default = true
+}
+
+variable "lakehouse_datasets" {
+  type = map(object({
+    description = optional(string, "")
+    feeders     = optional(list(string), [])
+  }))
+  default = {
+    sales = {
+      description = "Sales transactions and order data"
+      feeders     = ["311800512343-compute@developer.gserviceaccount.com"]
+    }
+    users = {
+      description = "User profiles and behavior data"
+      feeders     = ["311800512343-compute@developer.gserviceaccount.com"]
+    }
+    logs = {
+      description = "Application and access logs"
+      feeders     = ["311800512343-compute@developer.gserviceaccount.com"]
+    }
+  }
+}
+
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
   project_id                = var.project_id
@@ -121,6 +149,10 @@ module "spoke_shared" {
   host_project_id     = var.project_id
   host_network_name   = module.vpn_poc.network_name
   storage_bucket_name = var.storage_bucket_name
+
+  # Lakehouse
+  enable_lakehouse = var.enable_lakehouse
+  datasets         = var.lakehouse_datasets
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }
@@ -148,3 +180,22 @@ locals {
 output "spoke_project_id" { value = var.enable_spoke ? local.spoke_proj : null }
 output "spoke_vm_internal_ip" { value = var.enable_spoke ? local.spoke_vm_ip : null }
 output "spoke_mode" { value = var.enable_spoke ? var.spoke_mode : null }
+
+# --- Lakehouse outputs ---
+
+output "dataplex_lake_name" {
+  value = try(module.spoke_shared[0].dataplex_lake_name, null)
+}
+output "biglake_connection_id" {
+  value = try(module.spoke_shared[0].biglake_connection_id, null)
+}
+output "managed_folders" {
+  value = try(module.spoke_shared[0].managed_folders, {})
+}
+
+output "iceberg_catalog_id" {
+  value = try(module.spoke_shared[0].iceberg_catalog_id, null)
+}
+output "iceberg_catalog_sa" {
+  value = try(module.spoke_shared[0].iceberg_catalog_sa, null)
+}

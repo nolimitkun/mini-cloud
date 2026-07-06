@@ -10,8 +10,14 @@ terraform {
 }
 
 provider "google" {
-  region = "europe-west1"
+  region = var.region
   # credentials / impersonation for the host project  # TODO
+}
+
+variable "region" {
+  description = "GCP region for this landing zone (doc D3)."
+  type        = string
+  default     = "europe-west1"
 }
 
 variable "host_project_id" {
@@ -27,14 +33,11 @@ variable "interconnect_attachment_names" {
   default     = ["ic-attach-a", "ic-attach-b"]
 }
 
-locals {
-  region = "europe-west1"
-}
 
 module "hub" {
   source                        = "../../modules/gcp-hub"
   project_id                    = var.host_project_id
-  region                        = local.region
+  region                        = var.region
   hub_cidr                      = "10.48.0.0/20"
   interconnect_attachment_names = var.interconnect_attachment_names
 }
@@ -49,7 +52,8 @@ module "spoke" {
   name               = each.key
   service_project_id = each.value.project
   host_project_id    = module.hub.host_project_id
-  region             = local.region
+  host_network_name  = module.hub.host_network_name
+  region             = var.region
   spoke_cidr         = each.value.cidr
   crosscloud_cidr    = each.value.xcloud
 }
