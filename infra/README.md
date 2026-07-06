@@ -6,7 +6,29 @@ representative and marked `# TODO` where environment-specific values are require
 
 ## Layout
 
-```\ninfra/\n├── README.md\n├── policy/                 # guardrails as code (doc 04) — separate per cloud (separate creds)\n│   ├── aws/aws-scp.tf      # Service Control Policies\n│   └── gcp/gcp-org-policy.tf  # Organization Policy constraints\n├── modules/\n│   ├── aws-hub/            # Tier-2 hub: Direct Connect GW, TGW, Network Firewall, resolvers\n│   ├── aws-spoke/          # workload VPC attached to TGW, default route -> firewall\n│   ├── azure-hub/          # ExpressRoute GW, hub VNet, Azure Firewall, Private DNS Resolver\n│   ├── gcp-hub/            # Interconnect, Cloud Router, Shared VPC / NCC, Cloud DNS\n│   ├── gcp-vpn-poc/        # PoC: GCP HA VPN + Cloud Router + test VM\n│   ├── gcp-poc-spoke/      # PoC: VPC-peered spoke project + test VM\n│   ├── gcp-poc-spoke-sharedvpc/  # PoC: Shared-VPC spoke + lakehouse (Dataplex, Iceberg, BigLake)\n│   ├── aws-vpn-poc/        # PoC: AWS Site-to-Site VPN (VGW), dynamic BGP\n│   └── azure-vpn-poc/      # PoC: Azure route-based VPN Gateway, static routing\n├── onprem/                # PoC on-prem VPN endpoint (strongSwan + FRR configs)\n└── stacks/\n    ├── aws/  azure/  gcp/  # production landing-zone stacks (hub + spokes)\n    ├── gcp-poc/            # VPN + Lakehouse PoC: LAN <-> GCP over IPsec (GCS remote state)\n    ├── aws-poc/            # VPN PoC: LAN <-> AWS Site-to-Site VPN\n    └── azure-poc/          # VPN PoC: LAN <-> Azure VPN Gateway\n```
+```
+infra/
+├── README.md
+├── policy/                 # guardrails as code (doc 04) — separate per cloud (separate creds)
+│   ├── aws/aws-scp.tf      # Service Control Policies
+│   └── gcp/gcp-org-policy.tf  # Organization Policy constraints
+├── modules/
+│   ├── aws-hub/            # Tier-2 hub: Direct Connect GW, TGW, Network Firewall, resolvers
+│   ├── aws-spoke/          # workload VPC attached to TGW, default route -> firewall
+│   ├── azure-hub/          # ExpressRoute GW, hub VNet, Azure Firewall, Private DNS Resolver
+│   ├── gcp-hub/            # Interconnect, Cloud Router, Shared VPC / NCC, Cloud DNS
+│   ├── gcp-vpn-poc/        # PoC: GCP HA VPN + Cloud Router + test VM
+│   ├── gcp-poc-spoke/      # PoC: VPC-peered spoke project + test VM
+│   ├── gcp-poc-spoke-sharedvpc/  # PoC: Shared-VPC spoke + lakehouse (Dataplex, Iceberg, BigLake)
+│   ├── aws-vpn-poc/        # PoC: AWS Site-to-Site VPN (VGW), dynamic BGP
+│   └── azure-vpn-poc/      # PoC: Azure route-based VPN Gateway, static routing
+├── onprem/                 # PoC on-prem VPN endpoint (strongSwan + FRR configs)
+└── stacks/
+    ├── aws/  azure/  gcp/  # production landing-zone stacks (hub + spokes)
+    ├── gcp-poc/            # VPN + Lakehouse PoC: LAN <-> GCP over IPsec (GCS remote state)
+    ├── aws-poc/            # VPN PoC: LAN <-> AWS Site-to-Site VPN
+    └── azure-poc/          # VPN PoC: LAN <-> Azure VPN Gateway
+```
 
 ## PoC variant (VPN instead of dedicated circuits)
 
