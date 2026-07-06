@@ -6,7 +6,9 @@
 
 terraform {
   required_providers {
-    google = { source = "hashicorp/google", version = "~> 5.0" }
+    google   = { source = "hashicorp/google", version = "~> 5.0" }
+    null     = { source = "hashicorp/null", version = "~> 3.0" }
+    external = { source = "hashicorp/external", version = "~> 2.0" }
   }
 }
 
@@ -154,6 +156,11 @@ resource "google_dataplex_zone" "raw" {
     location_type = "SINGLE_REGION"
   }
 
+  # json_options block tends to drift; suppress the perpetual diff.
+  lifecycle {
+    ignore_changes = [discovery_spec[0].json_options]
+  }
+
   depends_on = [google_dataplex_lake.lakehouse]
 }
 
@@ -249,6 +256,8 @@ resource "null_resource" "iceberg_catalog" {
     EOT
     interpreter = ["bash", "-c"]
   }
+  # destroy provisioner: can only reference self.triggers.
+  # Hardcoded project — acceptable for this PoC module.
   provisioner "local-exec" {
     when        = destroy
     command     = "gcloud alpha biglake iceberg catalogs delete ${self.triggers.bucket} --project=mini-cloud-lakehouse --quiet || true"
@@ -272,10 +281,15 @@ data "external" "iceberg_catalog_sa" {
 # Grant the Iceberg catalog's credential-vending SA objectViewer on each
 # managed folder, so open-source engines can read data through the catalog
 # without needing their own GCS credentials.
+#
+# Note: the SA is computed at apply time (via data.external). The for_each
+# iterates var.datasets unconditionally; on first apply the null_resource
+# must be targeted separately to create the catalog before this resource
+# can resolve the member attribute.
 resource "google_storage_managed_folder_iam_member" "iceberg_catalog_reader" {
-  for_each       = var.enable_lakehouse && length(try(data.external.iceberg_catalog_sa[0].result.biglake_service_account, "")) > 0 ? var.datasets : {}
+  for_each       = var.enable_lakehouse ? var.datasets : {}
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.key].name
   role           = "roles/storage.objectViewer"
-  member         = "serviceAccount:${data.external.iceberg_catalog_sa[0].result.biglake_service_account}"
+  member         = "serviceAccount:${try(data.external.iceberg_catalog_sa[0].result.biglake_service_account, "")}"
 }
