@@ -41,6 +41,9 @@ Point any Iceberg REST client at the catalog:
 - **Warehouse:** `gs://<bucket>`
 - **Auth:** `Authorization: Bearer $(gcloud auth print-access-token)`
 - **Header:** `x-goog-user-project: <spoke project>`
+- **Header:** `X-Iceberg-Access-Delegation: vended-credentials` — required so the
+  catalog vends downscoped GCS credentials; without it the client must reach the
+  bucket with its own IAM, defeating the `biglake.viewer`-only consumer model.
 
 Example (Spark):
 
@@ -49,7 +52,8 @@ spark.sql.catalog.lakehouse                 org.apache.iceberg.spark.SparkCatalo
 spark.sql.catalog.lakehouse.type            rest
 spark.sql.catalog.lakehouse.uri             https://biglake.googleapis.com/iceberg/v1/restcatalog
 spark.sql.catalog.lakehouse.warehouse       gs://mini-cloud-lakehouse-data
-spark.sql.catalog.lakehouse.header.x-goog-user-project  mini-cloud-lakehouse
+spark.sql.catalog.lakehouse.header.x-goog-user-project        mini-cloud-lakehouse
+spark.sql.catalog.lakehouse.header.X-Iceberg-Access-Delegation  vended-credentials
 ```
 
 Then `SELECT * FROM lakehouse.sales.orders`.
@@ -72,7 +76,10 @@ cat = RestCatalog(
     uri="https://biglake.googleapis.com/iceberg/v1/restcatalog",
     warehouse="gs://mini-cloud-lakehouse-data",
     token=token,
-    **{"header.x-goog-user-project": "mini-cloud-lakehouse"},
+    **{
+        "header.x-goog-user-project": "mini-cloud-lakehouse",
+        "header.X-Iceberg-Access-Delegation": "vended-credentials",
+    },
 )
 
 # 1. Full scan -> Arrow

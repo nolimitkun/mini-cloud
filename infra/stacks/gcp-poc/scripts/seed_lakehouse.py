@@ -140,12 +140,19 @@ def main() -> None:
     ap.add_argument("--recreate", action="store_true", help="drop and rebuild each table")
     args = ap.parse_args()
 
+    # X-Iceberg-Access-Delegation makes the catalog vend downscoped GCS credentials
+    # in table responses, so FileIO reads/writes work with only roles/biglake.viewer
+    # (no direct GCS IAM). Without it, PyIceberg falls back to the caller's own
+    # credentials, which only works for identities that can reach the bucket directly.
     catalog = RestCatalog(
         "lakehouse",
         uri=REST_URI,
         warehouse=f"gs://{args.bucket}",
         token=gcloud_token(),
-        **{"header.x-goog-user-project": args.project},
+        **{
+            "header.x-goog-user-project": args.project,
+            "header.X-Iceberg-Access-Delegation": "vended-credentials",
+        },
     )
 
     for identifier, schema, rows in build_datasets():
