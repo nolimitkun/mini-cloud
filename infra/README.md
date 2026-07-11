@@ -19,13 +19,15 @@ infra/
 │   ├── gcp-hub/            # Interconnect, Cloud Router, Shared VPC / NCC, Cloud DNS
 │   ├── gcp-vpn-poc/        # PoC: GCP HA VPN + Cloud Router + test VM
 │   ├── gcp-poc-spoke/      # PoC: VPC-peered spoke project + test VM
-│   ├── gcp-poc-spoke-sharedvpc/  # PoC: Shared-VPC spoke + lakehouse (Dataplex, Iceberg, BigLake)
+│   ├── gcp-poc-spoke-sharedvpc/  # PoC: Shared-VPC spoke + lakehouse (GCS managed folders + Iceberg REST catalog)
 │   ├── aws-vpn-poc/        # PoC: AWS Site-to-Site VPN (VGW), dynamic BGP
 │   └── azure-vpn-poc/      # PoC: Azure route-based VPN Gateway, static routing
 ├── onprem/                 # PoC on-prem VPN endpoint (strongSwan + FRR configs)
+├── diagram/                # live-diagram generator (Inframap + Graphviz, doc 09)
 └── stacks/
     ├── aws/  azure/  gcp/  # production landing-zone stacks (hub + spokes)
     ├── gcp-poc/            # VPN + Lakehouse PoC: LAN <-> GCP over IPsec (GCS remote state)
+    │   └── scripts/        # lakehouse seeder (sample Iceberg tables via the runtime catalog)
     ├── aws-poc/            # VPN PoC: LAN <-> AWS Site-to-Site VPN
     └── azure-poc/          # VPN PoC: LAN <-> Azure VPN Gateway
 ```
@@ -66,6 +68,9 @@ make fmt            # format all .tf
 make validate       # offline: init -backend=false + validate every stack & policy
 make plan STACK=aws # plan one stack (needs creds + filled tfvars/backend)
 make plan-all       # plan all three
+make diagram        # regenerate docs/diagrams/live-gcp-poc.svg from state (doc 09)
+make apply-poc      # apply stacks/gcp-poc, then refresh the live diagram
+make seed-lakehouse # seed sample Iceberg tables via the runtime catalog (doc 10)
 ```
 
 CI ([`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml)) runs `fmt -check` and
