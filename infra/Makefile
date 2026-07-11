@@ -10,7 +10,7 @@ STACKS      := aws azure gcp
 STACK_DIRS  := $(addprefix stacks/,$(STACKS))
 TF          := terraform
 
-.PHONY: fmt fmt-check validate plan plan-all $(addprefix plan-,$(STACKS)) clean diagram apply-poc
+.PHONY: fmt fmt-check validate plan plan-all $(addprefix plan-,$(STACKS)) clean diagram apply-poc seed-lakehouse
 
 fmt:
 	$(TF) fmt -recursive .
@@ -52,6 +52,11 @@ diagram:
 apply-poc:
 	$(TF) -chdir=stacks/gcp-poc apply
 	$(MAKE) diagram
+
+# Seed the lakehouse with sample Iceberg tables exposed via the runtime catalog.
+# One-time deps: pip install -r stacks/gcp-poc/scripts/requirements.txt
+seed-lakehouse:
+	python3 stacks/gcp-poc/scripts/seed_lakehouse.py
 
 clean:
 	find . -type d -name '.terraform' -prune -exec rm -rf {} +

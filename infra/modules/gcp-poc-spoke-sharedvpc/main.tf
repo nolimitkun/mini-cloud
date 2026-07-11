@@ -99,31 +99,8 @@ resource "google_storage_bucket" "data" {
 }
 
 # ============================================================================
-# LAKEHOUSE: Dataplex Lake + Zone + Managed Folders + BigLake Connection
+# LAKEHOUSE: Managed Folders + Iceberg Runtime Catalog (open engines only)
 # ============================================================================
-
-# Enable Dataplex API in the spoke project.
-resource "google_project_service" "dataplex" {
-  count              = var.enable_lakehouse ? 1 : 0
-  service            = "dataplex.googleapis.com"
-  project            = local.project_id
-  disable_on_destroy = false
-}
-
-resource "google_project_service" "bigqueryconnection" {
-  count              = var.enable_lakehouse ? 1 : 0
-  project            = local.project_id
-  service            = "bigqueryconnection.googleapis.com"
-  disable_on_destroy = false
-}
-
-# BigQuery core API — required for the lakehouse dataset resource.
-resource "google_project_service" "bigquery" {
-  count              = var.enable_lakehouse ? 1 : 0
-  project            = local.project_id
-  service            = "bigquery.googleapis.com"
-  disable_on_destroy = false
-}
 
 # BigLake API — required for the Iceberg REST catalog (created via gcloud).
 resource "google_project_service" "biglake" {
@@ -131,53 +108,6 @@ resource "google_project_service" "biglake" {
   project            = local.project_id
   service            = "biglake.googleapis.com"
   disable_on_destroy = false
-}
-
-# Dataplex Lake — top-level logical container.
-resource "google_dataplex_lake" "lakehouse" {
-  count        = var.enable_lakehouse ? 1 : 0
-  name         = "lakehouse"
-  location     = var.region
-  project      = local.project_id
-  description  = "Lakehouse data lake for mini-cloud PoC"
-  display_name = "Mini-Cloud Lakehouse"
-  depends_on   = [google_project_service.dataplex]
-}
-
-# Dataplex Zone — single zone for PoC (RAW, where data lands).
-# Add a CURATED zone later when transformation pipelines are built.
-resource "google_dataplex_zone" "raw" {
-  count        = var.enable_lakehouse ? 1 : 0
-  name         = "raw"
-  location     = var.region
-  lake         = google_dataplex_lake.lakehouse[0].name
-  project      = local.project_id
-  type         = "RAW"
-  description  = "Raw ingested data zone"
-  display_name = "Raw Zone"
-
-  discovery_spec {
-    enabled = true
-    csv_options {
-      delimiter              = ","
-      header_rows            = 1
-      disable_type_inference = false
-    }
-    json_options {
-      disable_type_inference = false
-    }
-  }
-
-  resource_spec {
-    location_type = "SINGLE_REGION"
-  }
-
-  # json_options block tends to drift; suppress the perpetual diff.
-  lifecycle {
-    ignore_changes = [discovery_spec[0].json_options]
-  }
-
-  depends_on = [google_dataplex_lake.lakehouse]
 }
 
 # Managed folders: one per dataset. Each gets its own IAM policy.
@@ -203,51 +133,6 @@ resource "google_storage_managed_folder_iam_member" "feeder" {
   managed_folder = google_storage_managed_folder.dataset[each.value.dataset].name
   role           = "roles/storage.objectAdmin"
   member         = "serviceAccount:${each.value.feeder}"
-}
-
-# BigLake connection — Cloud Resource type for BigLake Iceberg managed tables.
-# Creates an internal SA: bqcx-{project_number}-{id}@gcp-sa-bigquery-condel...
-resource "google_bigquery_connection" "biglake" {
-  count         = var.enable_lakehouse ? 1 : 0
-  connection_id = "biglake-gcs"
-  location      = var.region
-  project       = local.project_id
-  friendly_name = "BigLake GCS connection"
-  description   = "Cloud Resource connection for BigLake Iceberg managed tables on GCS"
-  cloud_resource {}
-  depends_on = [google_project_service.bigqueryconnection]
-}
-
-# Grant the BigLake connection's service agent objectUser (read + write + delete)
-# on each managed folder so BigLake can create/write/delete objects for managed
-# Iceberg tables via the connection. objectViewer is read-only and cannot back
-# CREATE TABLE ... OPTIONS(table_format='ICEBERG') or loads into managed tables.
-resource "google_storage_managed_folder_iam_member" "biglake_writer" {
-  for_each = var.enable_lakehouse ? var.datasets : {}
-
-  bucket         = google_storage_bucket.data.name
-  managed_folder = google_storage_managed_folder.dataset[each.key].name
-  role           = "roles/storage.objectUser"
-  member         = "serviceAccount:${google_bigquery_connection.biglake[0].cloud_resource[0].service_account_id}"
-}
-
-# BigQuery also requires bucket metadata access on the connection SA for managed
-# Iceberg tables; legacyBucketReader is a bucket-level role, so grant it there.
-resource "google_storage_bucket_iam_member" "biglake_bucket_reader" {
-  count  = var.enable_lakehouse ? 1 : 0
-  bucket = google_storage_bucket.data.name
-  role   = "roles/storage.legacyBucketReader"
-  member = "serviceAccount:${google_bigquery_connection.biglake[0].cloud_resource[0].service_account_id}"
-}
-
-# BigQuery dataset for lakehouse catalog — where BigLake Iceberg tables live.
-resource "google_bigquery_dataset" "lakehouse" {
-  count       = var.enable_lakehouse ? 1 : 0
-  dataset_id  = var.bigquery_dataset_id
-  location    = var.region
-  project     = local.project_id
-  description = "Lakehouse catalog — BigLake Iceberg managed tables"
-  depends_on  = [google_project_service.bigquery]
 }
 
 # ============================================================================
@@ -322,4 +207,19 @@ resource "google_storage_managed_folder_iam_member" "iceberg_catalog_writer" {
   managed_folder = google_storage_managed_folder.dataset[each.key].name
   role           = "roles/storage.objectUser"
   member         = "serviceAccount:${try(data.external.iceberg_catalog_sa[0].result.biglake_service_account, "")}"
+}
+
+# ============================================================================
+# CONSUMER ACCESS (read) — declarative grants, no direct GCS IAM
+# ============================================================================
+
+# Open-engine consumers (Spark/Trino/PyIceberg): read via the Iceberg REST
+# catalog. biglake.viewer includes biglake.tables.getData — the permission that
+# lets the catalog vend downscoped GCS credentials to the engine. BigLake
+# catalogs are project-scoped, so the grant is project-level.
+resource "google_project_iam_member" "iceberg_consumer" {
+  for_each = var.enable_lakehouse ? toset(var.iceberg_consumers) : []
+  project  = local.project_id
+  role     = "roles/biglake.viewer"
+  member   = each.value
 }
