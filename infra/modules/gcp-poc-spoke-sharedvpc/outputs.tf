@@ -23,11 +23,11 @@ output "managed_folders" {
 # --- Lakehouse Runtime Catalog outputs ---
 
 output "iceberg_catalog_id" {
-  value       = var.enable_lakehouse ? "projects/${local.project_id}/catalogs/${var.storage_bucket_name}" : null
-  description = "Lakehouse Runtime Catalog ID (Iceberg REST catalog, gcloud-managed)."
+  value       = var.enable_lakehouse ? google_biglake_iceberg_catalog.runtime[0].id : null
+  description = "Lakehouse Runtime Catalog ID (Iceberg REST catalog)."
 }
 
 output "iceberg_catalog_sa" {
-  value       = var.enable_lakehouse ? try(data.external.iceberg_catalog_sa[0].result.biglake_service_account, null) : null
+  value       = var.enable_lakehouse ? google_biglake_iceberg_catalog.runtime[0].biglake_service_account : null
   description = "Iceberg catalog credential-vending service account."
 }

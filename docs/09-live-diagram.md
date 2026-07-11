@@ -13,8 +13,8 @@ external VPN gateway.
 
 ```bash
 cd infra
-make diagram                 # reads stacks/gcp-poc/terraform.tfstate -> docs/diagrams/live-gcp-poc.svg
-make diagram STATE=stacks/aws/terraform.tfstate   # any other stack
+make diagram                              # pulls stacks/gcp-poc state -> docs/diagrams/live-gcp-poc.svg
+make diagram DIAGRAM_STACK=stacks/aws     # any other stack
 ```
 
 Run it after any `terraform apply` and the SVG updates to match. The current output:

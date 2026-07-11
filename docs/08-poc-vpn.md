@@ -191,7 +191,9 @@ org_id     = "<org-id>"       # needs roles/compute.xpnAdmin on the org
   deny-external-IP, region-lock, storage public-access-prevention, skip-default-network org-wide.
 
 Verified E2E in both modes: `ping 10.48.16.2` from the LAN succeeds
-(on-prem → tunnel → hub → peering **or** Shared VPC → spoke VM).
+(on-prem → tunnel → hub → peering **or** Shared VPC → spoke VM). The Shared-VPC spoke's test VM has
+since been removed — the subnet stays ready for workloads, and the spoke now hosts the
+**lakehouse** (GCS + Iceberg runtime catalog): see [doc 10](10-lakehouse-poc.md).
 
 ---
 

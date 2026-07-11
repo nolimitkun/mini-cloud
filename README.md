@@ -34,7 +34,10 @@ infra/     Terraform skeleton: hub+spoke modules ×3 clouds, policy guardrails, 
 - **Try it cheaply (PoC):** [docs/08-poc-vpn.md](docs/08-poc-vpn.md) — LAN as on-prem + site-to-site
   VPN to GCP (no dedicated circuit), with runnable Terraform + strongSwan config.
 - **Lakehouse PoC:** [docs/10-lakehouse-poc.md](docs/10-lakehouse-poc.md) — GCS data lake +
-  Dataplex Knowledge Catalog + Iceberg Runtime Catalog + BigLake, deployed in the spoke project.
+  BigLake Iceberg REST runtime catalog (vended credentials) in the spoke project; open engines
+  (Spark/Trino/Flink/PyIceberg) read via the catalog, BigQuery via metastore federation.
+- **Live diagram:** [docs/09-live-diagram.md](docs/09-live-diagram.md) — SVG generated from
+  Terraform state on every change (Inframap + Graphviz, CI-committed).
 
 ## Quick start (offline checks)
 

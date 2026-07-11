@@ -166,8 +166,7 @@ no service-account keys.
 
 Why it scales: managed folders cap at 1,500 principals. Routing every reader
 through the catalog vending SA means adding consumers never touches folder IAM.
-The full write-up lives in `docs/10-lakehouse-poc.md` §3 (on the
-`docs/lakehouse-architecture` branch).
+The full write-up lives in [docs/10-lakehouse-poc.md §3](../../../../docs/10-lakehouse-poc.md).
 
 ### Granting consumers (declarative)
 

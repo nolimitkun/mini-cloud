@@ -45,3 +45,14 @@ Private plane (`10.0.0.0/8`, cloud-local) vs cross-cloud plane (`172.16.0.0/12`,
 per-site allocations. See [02 §1](../02-network-design.md).
 
 ![Two-plane IPAM](08-ipam-two-plane.svg)
+
+### 09 · Live GCP PoC (generated)
+Auto-generated from Terraform state (Inframap + Graphviz), refreshed by CI on every `infra/**`
+change. See [09](../09-live-diagram.md).
+
+![Live GCP PoC diagram](live-gcp-poc.svg)
+
+### 10 · Lakehouse architecture (interactive HTML)
+GCS storage layer + BigLake Iceberg REST runtime catalog, feeder/consumer access model. Interactive
+SVG — open [gcp-lakehouse-architecture.html](gcp-lakehouse-architecture.html) directly. See
+[10](../10-lakehouse-poc.md).
