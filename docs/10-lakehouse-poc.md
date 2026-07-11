@@ -48,7 +48,7 @@ Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) acc
 
 | Layer | Resource | Role | In query path? |
 |---|---|---|---|
-| **Lakehouse Runtime Catalog** | `google_biglake_iceberg_catalog` (native, provider ≥ 7.0) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
+| **Lakehouse Runtime Catalog** | `google_biglake_iceberg_catalog` (native, provider ≥ 7.15) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
 
 The runtime catalog is the only catalog: it lets open-source engines discover and read Iceberg
 tables directly. We removed the earlier BigLake connection + `lakehouse_catalog` dataset — but note
@@ -153,7 +153,7 @@ catalog (same as the bucket), `logs` the namespace, `events` the table.
 
 ## 4. Iceberg catalog (native Terraform resource)
 
-The catalog is the native `google_biglake_iceberg_catalog` resource (provider ≥ 7.0):
+The catalog is the native `google_biglake_iceberg_catalog` resource (provider ≥ 7.15):
 
 ```hcl
 resource "google_biglake_iceberg_catalog" "runtime" {

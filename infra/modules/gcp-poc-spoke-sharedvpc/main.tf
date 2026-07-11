@@ -6,8 +6,9 @@
 
 terraform {
   required_providers {
-    # >= 7.0 for google_biglake_iceberg_catalog (native Iceberg REST catalog).
-    google = { source = "hashicorp/google", version = ">= 7.0, < 8.0" }
+    # >= 7.15 for google_biglake_iceberg_catalog (native Iceberg REST catalog,
+    # added in v7.15.0).
+    google = { source = "hashicorp/google", version = ">= 7.15.0, < 8.0" }
   }
 }
 
