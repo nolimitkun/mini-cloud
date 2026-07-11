@@ -1,0 +1,2 @@
+pyiceberg[gcsfs]>=0.11
+pyarrow>=17

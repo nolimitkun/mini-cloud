@@ -108,6 +108,14 @@ variable "lakehouse_datasets" {
   }
 }
 
+# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to the
+# runtime catalog. Empty by default. Members use IAM syntax, e.g.
+# "user:a@example.com", "group:analysts@example.com".
+variable "lakehouse_iceberg_consumers" {
+  type    = list(string)
+  default = []
+}
+
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
   project_id                = var.project_id
@@ -151,8 +159,9 @@ module "spoke_shared" {
   storage_bucket_name = var.storage_bucket_name
 
   # Lakehouse
-  enable_lakehouse = var.enable_lakehouse
-  datasets         = var.lakehouse_datasets
+  enable_lakehouse  = var.enable_lakehouse
+  datasets          = var.lakehouse_datasets
+  iceberg_consumers = var.lakehouse_iceberg_consumers
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }
@@ -183,12 +192,6 @@ output "spoke_mode" { value = var.enable_spoke ? var.spoke_mode : null }
 
 # --- Lakehouse outputs ---
 
-output "dataplex_lake_name" {
-  value = try(module.spoke_shared[0].dataplex_lake_name, null)
-}
-output "biglake_connection_id" {
-  value = try(module.spoke_shared[0].biglake_connection_id, null)
-}
 output "managed_folders" {
   value = try(module.spoke_shared[0].managed_folders, {})
 }

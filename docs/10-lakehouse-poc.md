@@ -1,27 +1,27 @@
-# Lakehouse — GCS Data Lake + Knowledge Catalog + Runtime Catalog (PoC)
+# Lakehouse — GCS Data Lake + Runtime Catalog (PoC)
 
 **Status:** PoC v0.1 — deployed in `mini-cloud-lakehouse`
 **Branch:** `feat/lakehouse-poc`
-**Purpose:** Extend the GCP VPN PoC with a full lakehouse stack: GCS storage, Knowledge Catalog
-(Dataplex), Lakehouse Runtime Catalog (Iceberg REST), and BigLake for BigQuery access.
+**Purpose:** Extend the GCP VPN PoC with a lakehouse stack: GCS storage and the Lakehouse
+Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) access.
 
 > This builds on the shared-VPC spoke from [08-poc-vpn.md](08-poc-vpn.md). The spoke project
-> `mini-cloud-lakehouse` was an empty GCS bucket; it now has three catalog layers and managed
-> folder IAM controlling cross-project feeder/consumer access.
+> `mini-cloud-lakehouse` was an empty GCS bucket; it now has the Iceberg runtime catalog plus
+> managed folder IAM controlling cross-project feeder/consumer access.
+>
+> **Scope note:** an earlier draft included a Knowledge Catalog layer (Dataplex Lake + Zone) for
+> governance/discovery. It was dropped from the PoC — it sits out of band from the query path and
+> is not required for the lakehouse to function. See [§7](#7-when-a-knowledge-catalog-is-worth-adding)
+> for when to add it back.
 
 ---
 
 ## 1. Architecture
 
-![Lakehouse architecture: GCS + Knowledge Catalog + Runtime Catalog + BigLake](diagrams/gcp-lakehouse-architecture.html)
+![Lakehouse architecture: GCS + Iceberg Runtime Catalog](diagrams/gcp-lakehouse-architecture.html)
 
 ```
-                          Knowledge Catalog
-                          (Dataplex Lake+Zone)
-                          governance · discovery · lineage
-                                   ▲
-                                   │ auto-discovery
-┌──────────────┐     write    ┌────┴────────────────────────────┐
+┌──────────────┐     write    ┌─────────────────────────────────┐
 │ Feeder Proj  │─────────────▶│  GCS Storage Layer              │
 │ (hub)        │ objectAdmin  │  mini-cloud-lakehouse-data      │
 │              │              │  ├── sales/   (managed folder)  │
@@ -32,34 +32,35 @@
                                    │ Iceberg metadata sync
                                    ▼
                           Lakehouse Runtime Catalog
-                          (Iceberg REST Catalog)
+                          (BigLake Iceberg REST Catalog)
                           table snapshots · manifests · schema
                           credential mode: VENDED_CREDENTIALS
                            │                    │
                     Iceberg REST API    vended GCS token
                            │                    │
-                    ┌──────▼──────┐    ┌───────▼──────────┐
-                    │ Consumer B  │    │ BigLake Conn.     │
-                    │ Spark/Trino │    │ (Cloud Resource)  │
-                    │ open engine │    │ ───────────────── │
-                    └─────────────┘    │ Consumer A        │
-                                       │ BigQuery / Looker │
-                                       └───────────────────┘
+                          ┌▼────────────────────▼┐
+                          │ Consumer: Open Engine │
+                          │ Spark/Trino/Flink/Py  │
+                          │ roles/biglake.viewer  │
+                          └───────────────────────┘
 ```
 
-### Three catalog layers
+### One catalog layer
 
 | Layer | Resource | Role | In query path? |
 |---|---|---|---|
-| **Knowledge Catalog** | `google_dataplex_lake` + `zone` | Governance: discovery, lineage, glossary, quality | No — out of band |
-| **Lakehouse Runtime Catalog** | BigLake Iceberg Catalog (`gcloud alpha` / `null_resource`) | Operational: serves Iceberg REST API to Spark/Trino, vends GCS credentials | **Yes** — hot path |
-| **BigLake Connection** | `google_bigquery_connection` (Cloud Resource) | Bridge: BigQuery → GCS reads via delegated SA | **Yes** — hot path |
+| **Lakehouse Runtime Catalog** | BigLake Iceberg Catalog (`gcloud alpha` / `null_resource`) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
 
-Key distinction: **Knowledge Catalog** helps humans find data. **Runtime Catalog** helps query engines read it.
+The runtime catalog is the only catalog: it lets open-source engines discover and read Iceberg
+tables directly. We removed the earlier BigLake connection + `lakehouse_catalog` dataset — but note
+those were a *redundant* BigQuery path, not the only one (see [§3.1](#31-bigquery-sees-it-anyway-metastore-federation)):
+BigQuery can still query these tables through the BigLake metastore integration, because the runtime
+catalog **is** a BigQuery-metastore catalog. A governance/discovery layer (Knowledge Catalog) is
+out of scope — see [§7](#7-when-a-knowledge-catalog-is-worth-adding).
 
 ---
 
-## 2. Terraform resources (20 total)
+## 2. Terraform resources (12 lakehouse resources)
 
 All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse = true`.
 
@@ -67,15 +68,12 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 
 | Resource | API |
 |---|---|
-| `google_project_service.dataplex` | `dataplex.googleapis.com` |
-| `google_project_service.bigqueryconnection` | `bigqueryconnection.googleapis.com` |
+| `google_project_service.biglake` | `biglake.googleapis.com` |
 
-### Catalog
+### Runtime Catalog
 
 | Resource | Detail |
 |---|---|
-| `google_dataplex_lake.lakehouse` | Name: `lakehouse`, location: `europe-west1` |
-| `google_dataplex_zone.raw` | Zone: `raw`, type: RAW, CSV/JSON auto-discovery |
 | `null_resource.iceberg_catalog` | Iceberg REST catalog via `gcloud alpha biglake iceberg catalogs create` |
 | `data.external.iceberg_catalog_sa` | Reads catalog's credential-vending SA at apply time |
 
@@ -86,20 +84,13 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 | `google_storage_bucket.data` | `mini-cloud-lakehouse-data`, UBLA enforced, public access prevented |
 | `google_storage_managed_folder.dataset` (×3) | `sales/`, `users/`, `logs/` |
 
-### BigLake + BigQuery
+### IAM bindings (6 folder bindings + optional consumers)
 
-| Resource | Detail |
-|---|---|
-| `google_bigquery_connection.biglake` | Connection ID: `biglake-gcs`, Cloud Resource type |
-| `google_bigquery_dataset.lakehouse` | Dataset: `lakehouse_catalog` |
-
-### IAM bindings (9 total)
-
-| SA | Role | Folders | Purpose |
+| Principal | Role | Folders | Purpose |
 |---|---|---|---|
 | `311800512343-compute@developer` (hub feeder) | `storage.objectAdmin` | all 3 | Direct write to GCS |
-| `bqcx-367509735644-3m7e@gcp-sa-bigquery-condel` | `storage.objectViewer` | all 3 | BigLake delegated read for BigQuery consumers |
-| `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectViewer` | all 3 | Vended credentials for Spark/Trino via Iceberg catalog |
+| `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 | Vended credentials for Spark/Trino via Iceberg catalog |
+| `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read via Iceberg REST — no GCS IAM (empty by default) |
 
 ---
 
@@ -112,22 +103,9 @@ Granted `storage.objectAdmin` on each managed folder. Spark/Flink jobs write
 Parquet data files and commit Iceberg table metadata to the `metadata/` prefix
 within each folder.
 
-### BigQuery consumer (read)
-
-Consumer A (Analytics team) queries via BigLake managed Iceberg tables:
-
-```sql
-CREATE OR REPLACE EXTERNAL TABLE `mini-cloud-lakehouse.lakehouse_catalog.sales`
-WITH CONNECTION `mini-cloud-lakehouse.europe-west1.biglake-gcs`
-OPTIONS (format = 'ICEBERG', uris = ['gs://mini-cloud-lakehouse-data/sales/']);
-```
-
-The BigLake Connection SA (`bqcx-...`) holds `objectViewer` on GCS. The consumer
-only needs `bigquery.connections.use` — **no GCS IAM needed per consumer**.
-
 ### Open-source engine consumer (read)
 
-Consumer B (Spark, Trino, Python) queries via the Iceberg REST Catalog:
+Consumers (Spark, Trino, Flink, Python) query via the Iceberg REST Catalog:
 
 ```java
 // Spark config
@@ -139,6 +117,39 @@ spark.sql.catalog.lakehouse.credential = vended-credentials
 
 The catalog SA (`blirc-...`) vends downscoped GCS tokens. The engine does not
 need its own GCS service account key.
+
+### 3.1 BigQuery sees it anyway (metastore federation)
+
+The runtime catalog is created as a **BigQuery-metastore** catalog
+(`gcloud alpha biglake iceberg catalogs create … --catalog-type=gcs-bucket`), so the
+tables show up in BigQuery Studio under the catalog `mini-cloud-lakehouse-data`
+(→ namespaces `sales`/`users`/`logs` → tables) and BigQuery can query them
+directly — **without** a BigQuery dataset or a BigLake connection. GCS reads use
+the catalog's vended credentials (the `blirc-…` SA), not a per-user grant.
+
+So the `lakehouse_catalog` dataset + BigLake connection we removed were a *second,
+redundant* BigQuery path (classic BigLake external tables). Removing them did not
+take BigQuery access away — the metastore-native path still works. This is a
+platform behaviour of the catalog itself, not something the module provisions.
+
+Access is gated by BigLake catalog IAM: an identity needs `roles/biglake.viewer`
+(includes `biglake.tables.getData`) to read via the metastore, which is exactly
+the `lakehouse_iceberg_consumers` grant. Project Owners/Editors can always query.
+There is no way to keep the runtime catalog while hiding it from BigQuery — the two
+are the same catalog.
+
+**Query syntax.** Reference the table with a **4-part** name,
+`` `project.catalog.namespace.table` `` — the catalog sits between project and
+namespace:
+
+```sql
+SELECT * FROM `mini-cloud-lakehouse.mini-cloud-lakehouse-data.logs.events` LIMIT 1000;
+```
+
+The common mistake is a 3-part name (`mini-cloud-lakehouse-data.logs.events`),
+which BigQuery parses as `project.dataset.table` and rejects (`Dataset not found`).
+Here `mini-cloud-lakehouse` is the project, `mini-cloud-lakehouse-data` is the
+catalog (same as the bucket), `logs` the namespace, `events` the table.
 
 ---
 
@@ -176,7 +187,7 @@ resource "google_biglake_iceberg_catalog" "runtime" {
 
 1. `terraform apply -target='module.spoke_shared[0].null_resource.iceberg_catalog[0]'`
    — creates the Iceberg REST catalog first (needed before IAM bindings can resolve the SA)
-2. `terraform apply` — creates remaining resources (zone, IAM, BQ dataset)
+2. `terraform apply` — creates remaining resources (managed folders, IAM)
 
 The catalog's credential-vending SA is only known after creation; the `data.external`
 resource reads it at apply time so the IAM bindings reference the correct principal.
@@ -185,9 +196,9 @@ resource reads it at apply time so the IAM bindings reference the correct princi
 
 ## 6. Limits & considerations
 
-- **IAM principal ceiling**: 1,500 principals per managed folder. Mitigated by using
-  BigLake Connection SA (1 SA bridges all BigQuery consumers) and Iceberg catalog
-  vended credentials (no per-consumer GCS IAM needed for open-source engines).
+- **IAM principal ceiling**: 1,500 principals per managed folder. Mitigated by the
+  Iceberg catalog's vended credentials — consumers get `roles/biglake.viewer` and the
+  catalog vends GCS access, so no per-consumer GCS IAM is ever added to a folder.
 - **Provider version**: Iceberg catalog uses gcloud; migrate to native resource after
   upgrading to `hashicorp/google ~> 7.0`.
 - **IAM propagation**: Changes take up to 7 minutes to propagate globally.
@@ -199,7 +210,37 @@ resource reads it at apply time so the IAM bindings reference the correct princi
 
 ---
 
-## 7. Related docs
+## 7. When a Knowledge Catalog is worth adding
+
+The PoC ships without a Knowledge Catalog (Dataplex Lake + Zone). The Runtime Catalog is the
+hard requirement — Iceberg cannot function without a catalog to map table names to metadata
+snapshots and serialize commits — but a Knowledge Catalog is a governance/discovery overlay that
+sits **out of band from the query path**. No query fails without it, so for a single-team PoC over
+a handful of known tables it adds operational surface with little payoff.
+
+It becomes worth adding when:
+
+- **Multiple teams** produce and consume data and can no longer find tables by tribal knowledge
+  (roughly a few dozen tables in).
+- **Compliance / PII** obligations require tagging, policy propagation, and lineage to answer
+  "where does this data flow?"
+- **Data-quality SLAs** need Dataplex auto-DQ and profiling to attach to a catalog layer.
+
+Two GCP specifics worth knowing:
+
+- BigQuery datasets and BigLake tables are **already indexed** in Dataplex Universal Catalog search
+  without any Lake/Zone resources, so basic discovery exists even now. An explicit Lake/Zone adds
+  GCS-level auto-discovery (crawling raw CSV/JSON), zone governance, and managed quality/profiling.
+- Google is converging these layers: the BigLake metastore is increasingly the single metastore
+  whose entries surface in Dataplex automatically, so registering in the runtime catalog
+  increasingly yields knowledge-catalog visibility as a side effect.
+
+To add it back, re-introduce `google_dataplex_lake` + `google_dataplex_zone` (and the
+`dataplex.googleapis.com` service) in the `gcp-poc-spoke-sharedvpc` module.
+
+---
+
+## 8. Related docs
 
 - [08 — PoC VPN (GCP)](08-poc-vpn.md) — the base PoC this builds on
 - [01 — Architecture specification](01-architecture-specification.md) — design goals and decisions
