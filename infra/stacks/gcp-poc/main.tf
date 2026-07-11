@@ -1,12 +1,11 @@
-# GCP VPN PoC stack. Local state is fine for a throwaway PoC.
+# GCP VPN PoC stack. Remote state in GCS (see backend.tf) — durable state + CI diagram job.
 # Fill terraform.tfvars, then: terraform init && terraform apply && terraform output
 
 terraform {
   required_version = ">= 1.5"
   required_providers {
-    google = { source = "hashicorp/google", version = "~> 5.0" }
+    google = { source = "hashicorp/google", version = "~> 7.0" }
   }
-  # No remote backend — PoC uses local state. Add one if you keep it around.
 }
 
 provider "google" {

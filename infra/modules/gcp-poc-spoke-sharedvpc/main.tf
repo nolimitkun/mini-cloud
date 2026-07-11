@@ -6,9 +6,8 @@
 
 terraform {
   required_providers {
-    google   = { source = "hashicorp/google", version = "~> 5.0" }
-    null     = { source = "hashicorp/null", version = "~> 3.0" }
-    external = { source = "hashicorp/external", version = "~> 2.0" }
+    # >= 7.0 for google_biglake_iceberg_catalog (native Iceberg REST catalog).
+    google = { source = "hashicorp/google", version = ">= 7.0, < 8.0" }
   }
 }
 
@@ -102,7 +101,7 @@ resource "google_storage_bucket" "data" {
 # LAKEHOUSE: Managed Folders + Iceberg Runtime Catalog (open engines only)
 # ============================================================================
 
-# BigLake API — required for the Iceberg REST catalog (created via gcloud).
+# BigLake API — required for the Iceberg REST catalog.
 resource "google_project_service" "biglake" {
   count              = var.enable_lakehouse ? 1 : 0
   project            = local.project_id
@@ -148,65 +147,25 @@ resource "google_storage_managed_folder_iam_member" "feeder" {
 #
 # CREDENTIAL_MODE_VENDED_CREDENTIALS: the catalog generates downscoped GCS
 # tokens for query engines, so they don't need their own GCS SA keys.
-#
-# NOTE: The google_biglake_iceberg_catalog Terraform resource requires
-# provider >= v7.x. We use gcloud via null_resource until we upgrade.
-# Once upgraded, replace this block with the native resource.
-resource "null_resource" "iceberg_catalog" {
-  count = var.enable_lakehouse ? 1 : 0
-  triggers = {
-    bucket  = google_storage_bucket.data.name
-    project = local.project_id
-  }
-  provisioner "local-exec" {
-    command     = <<-EOT
-      gcloud alpha biglake iceberg catalogs describe ${google_storage_bucket.data.name} \
-        --project=${local.project_id} 2>/dev/null && echo "EXISTS" || \
-      gcloud alpha biglake iceberg catalogs create ${google_storage_bucket.data.name} \
-        --catalog-type=gcs-bucket \
-        --credential-mode=vended-credentials \
-        --project=${local.project_id}
-    EOT
-    interpreter = ["bash", "-c"]
-  }
-  # destroy provisioner: can only reference self.triggers, so the project is
-  # captured in triggers above and used here to target the actual spoke project.
-  provisioner "local-exec" {
-    when        = destroy
-    command     = "gcloud alpha biglake iceberg catalogs delete ${self.triggers.bucket} --project=${self.triggers.project} --quiet || true"
-    interpreter = ["bash", "-c"]
-  }
-  depends_on = [google_project_service.biglake]
-}
-
-# Fetch the catalog's credential-vending service account.
-# This SA is auto-created when the catalog is provisioned.
-data "external" "iceberg_catalog_sa" {
-  count = var.enable_lakehouse ? 1 : 0
-  program = ["bash", "-c", <<-EOT
-    SA=$(gcloud alpha biglake iceberg catalogs describe ${google_storage_bucket.data.name} \
-      --project=${local.project_id} --format='value(biglake-service-account)' 2>/dev/null || echo "")
-    jq -n --arg sa "$SA" '{"biglake_service_account":$sa}'
-  EOT
-  ]
-  depends_on = [null_resource.iceberg_catalog]
+resource "google_biglake_iceberg_catalog" "runtime" {
+  count           = var.enable_lakehouse ? 1 : 0
+  project         = local.project_id
+  name            = google_storage_bucket.data.name
+  catalog_type    = "CATALOG_TYPE_GCS_BUCKET"
+  credential_mode = "CREDENTIAL_MODE_VENDED_CREDENTIALS"
+  depends_on      = [google_project_service.biglake]
 }
 
 # Grant the Iceberg catalog's credential-vending SA objectUser on each managed
 # folder. The runtime catalog needs write access to create namespaces/tables and
 # write Iceberg metadata; the downscoped credentials it vends to Spark/Trino are
 # bounded by this grant, so objectViewer would leave those jobs read-only.
-#
-# Note: the SA is computed at apply time (via data.external). The for_each
-# iterates var.datasets unconditionally; on first apply the null_resource
-# must be targeted separately to create the catalog before this resource
-# can resolve the member attribute.
 resource "google_storage_managed_folder_iam_member" "iceberg_catalog_writer" {
   for_each       = var.enable_lakehouse ? var.datasets : {}
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.key].name
   role           = "roles/storage.objectUser"
-  member         = "serviceAccount:${try(data.external.iceberg_catalog_sa[0].result.biglake_service_account, "")}"
+  member         = "serviceAccount:${google_biglake_iceberg_catalog.runtime[0].biglake_service_account}"
 }
 
 # ============================================================================

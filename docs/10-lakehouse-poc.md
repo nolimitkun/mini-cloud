@@ -1,7 +1,6 @@
 # Lakehouse — GCS Data Lake + Runtime Catalog (PoC)
 
-**Status:** PoC v0.1 — deployed in `mini-cloud-lakehouse`
-**Branch:** `feat/lakehouse-poc`
+**Status:** PoC — deployed in `mini-cloud-lakehouse`, merged to `main` (PR #8)
 **Purpose:** Extend the GCP VPN PoC with a lakehouse stack: GCS storage and the Lakehouse
 Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) access.
 
@@ -49,7 +48,7 @@ Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) acc
 
 | Layer | Resource | Role | In query path? |
 |---|---|---|---|
-| **Lakehouse Runtime Catalog** | BigLake Iceberg Catalog (`gcloud alpha` / `null_resource`) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
+| **Lakehouse Runtime Catalog** | `google_biglake_iceberg_catalog` (native, provider ≥ 7.0) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
 
 The runtime catalog is the only catalog: it lets open-source engines discover and read Iceberg
 tables directly. We removed the earlier BigLake connection + `lakehouse_catalog` dataset — but note
@@ -74,8 +73,7 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 
 | Resource | Detail |
 |---|---|
-| `null_resource.iceberg_catalog` | Iceberg REST catalog via `gcloud alpha biglake iceberg catalogs create` |
-| `data.external.iceberg_catalog_sa` | Reads catalog's credential-vending SA at apply time |
+| `google_biglake_iceberg_catalog.runtime` | Iceberg REST catalog, `gcs-bucket` type, vended credentials; exports the credential-vending SA (`biglake_service_account`) at plan/apply time |
 
 ### Storage
 
@@ -121,7 +119,7 @@ need its own GCS service account key.
 ### 3.1 BigQuery sees it anyway (metastore federation)
 
 The runtime catalog is created as a **BigQuery-metastore** catalog
-(`gcloud alpha biglake iceberg catalogs create … --catalog-type=gcs-bucket`), so the
+(`catalog_type = "CATALOG_TYPE_GCS_BUCKET"`), so the
 tables show up in BigQuery Studio under the catalog `mini-cloud-lakehouse-data`
 (→ namespaces `sales`/`users`/`logs` → tables) and BigQuery can query them
 directly — **without** a BigQuery dataset or a BigLake connection. GCS reads use
@@ -153,44 +151,51 @@ catalog (same as the bucket), `logs` the namespace, `events` the table.
 
 ---
 
-## 4. Iceberg catalog (gcloud-managed)
+## 4. Iceberg catalog (native Terraform resource)
 
-The `google_biglake_iceberg_catalog` Terraform resource requires provider ≥ v7.x.
-We use `null_resource` + `gcloud alpha` as a bridge until the provider is upgraded.
-
-```bash
-# Create (idempotent via Terraform null_resource)
-gcloud alpha biglake iceberg catalogs create mini-cloud-lakehouse-data \
-  --catalog-type=gcs-bucket \
-  --credential-mode=vended-credentials \
-  --project=mini-cloud-lakehouse
-
-# Inspect
-gcloud alpha biglake iceberg catalogs describe mini-cloud-lakehouse-data \
-  --project=mini-cloud-lakehouse --format=json
-```
-
-When upgrading to `hashicorp/google ~> 7.0`, replace with the native resource:
+The catalog is the native `google_biglake_iceberg_catalog` resource (provider ≥ 7.0):
 
 ```hcl
 resource "google_biglake_iceberg_catalog" "runtime" {
-  name            = google_storage_bucket.data.name
+  project         = local.project_id
+  name            = google_storage_bucket.data.name # gcs-bucket type: name must match the bucket
   catalog_type    = "CATALOG_TYPE_GCS_BUCKET"
   credential_mode = "CREDENTIAL_MODE_VENDED_CREDENTIALS"
-  project         = local.project_id
 }
+```
+
+It exports `biglake_service_account` — the credential-vending SA (`blirc-…`) — so the managed-folder
+IAM bindings reference it directly; no `gcloud` or apply-time lookup needed.
+
+An earlier revision bridged this with `null_resource` + `gcloud alpha biglake iceberg catalogs create`
+while the stack was on provider 5.x. To inspect the live catalog:
+
+```bash
+gcloud alpha biglake iceberg catalogs describe mini-cloud-lakehouse-data \
+  --project=mini-cloud-lakehouse --format=json
 ```
 
 ---
 
 ## 5. Deploy order
 
-1. `terraform apply -target='module.spoke_shared[0].null_resource.iceberg_catalog[0]'`
-   — creates the Iceberg REST catalog first (needed before IAM bindings can resolve the SA)
-2. `terraform apply` — creates remaining resources (managed folders, IAM)
+A single `terraform apply` — the catalog's vending SA is a plan-time attribute of the native
+resource, so the IAM bindings resolve without the old two-step targeted apply.
 
-The catalog's credential-vending SA is only known after creation; the `data.external`
-resource reads it at apply time so the IAM bindings reference the correct principal.
+### Migrating a deployment created with the gcloud bridge
+
+If the state still holds `null_resource.iceberg_catalog` (pre-provider-7 revision), **do not just
+apply**: removing the `null_resource` from config triggers its destroy provisioner, which deletes
+the live catalog. Instead:
+
+```bash
+cd infra/stacks/gcp-poc
+terraform state rm 'module.spoke_shared[0].null_resource.iceberg_catalog[0]'
+terraform state rm 'module.spoke_shared[0].data.external.iceberg_catalog_sa[0]'
+terraform import 'module.spoke_shared[0].google_biglake_iceberg_catalog.runtime[0]' \
+  mini-cloud-lakehouse/mini-cloud-lakehouse-data
+terraform plan   # expect: no create/destroy of the catalog; IAM bindings unchanged
+```
 
 ---
 
@@ -199,8 +204,8 @@ resource reads it at apply time so the IAM bindings reference the correct princi
 - **IAM principal ceiling**: 1,500 principals per managed folder. Mitigated by the
   Iceberg catalog's vended credentials — consumers get `roles/biglake.viewer` and the
   catalog vends GCS access, so no per-consumer GCS IAM is ever added to a folder.
-- **Provider version**: Iceberg catalog uses gcloud; migrate to native resource after
-  upgrading to `hashicorp/google ~> 7.0`.
+- **Provider version**: the gcp-poc stack pins `hashicorp/google ~> 7.0` for the native
+  `google_biglake_iceberg_catalog` resource; the other GCP stacks still run 5.x.
 - **IAM propagation**: Changes take up to 7 minutes to propagate globally.
 - **Managed folder nesting**: Up to 15 levels. Current datasets are flat (`sales/`,
   `users/`, `logs/`) with Iceberg metadata under `{dataset}/metadata/`.
