@@ -59,7 +59,7 @@ out of scope — see [§7](#7-when-a-knowledge-catalog-is-worth-adding).
 
 ---
 
-## 2. Terraform resources (12 lakehouse resources)
+## 2. Terraform resources (15 lakehouse resources)
 
 All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse = true`.
 
@@ -74,6 +74,7 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 | Resource | Detail |
 |---|---|
 | `google_biglake_iceberg_catalog.runtime` | Iceberg REST catalog, `gcs-bucket` type, vended credentials; exports the credential-vending SA (`biglake_service_account`) at plan/apply time |
+| `google_biglake_iceberg_namespace.dataset` (×3) | One namespace per dataset (`sales`/`users`/`logs`) — the IAM anchor for per-dataset consumer grants |
 
 ### Storage
 
@@ -88,7 +89,8 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 |---|---|---|---|
 | `311800512343-compute@developer` (hub feeder) | `storage.objectAdmin` | all 3 | Direct write to GCS |
 | `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 | Vended credentials for Spark/Trino via Iceberg catalog |
-| `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read via Iceberg REST — no GCS IAM (empty by default) |
+| `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read ALL datasets via Iceberg REST — no GCS IAM (empty by default) |
+| `lakehouse_datasets[*].consumers` | `roles/biglake.viewer` | one namespace | Read ONE dataset via Iceberg REST — no GCS IAM (empty by default) |
 
 ---
 
@@ -115,6 +117,31 @@ spark.sql.catalog.lakehouse.credential = vended-credentials
 
 The catalog SA (`blirc-...`) vends downscoped GCS tokens. The engine does not
 need its own GCS service account key.
+
+### Per-dataset consumers (namespace-scoped read)
+
+BigLake IAM inherits downward (project → catalog → namespace → table), so where the
+`biglake.viewer` grant sits decides the blast radius:
+
+- `lakehouse_iceberg_consumers` → **project**-level → reads every dataset.
+- `lakehouse_datasets[*].consumers` → **namespace**-level
+  (`google_biglake_iceberg_namespace_iam_member`) → reads that dataset only; credential
+  vending is bounded the same way.
+
+Example — consumer1 reads `sales` + `users`, consumer2 reads `logs` only:
+
+```hcl
+# terraform.tfvars
+lakehouse_datasets = {
+  sales = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
+  users = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
+  logs  = { feeders = ["…"], consumers = ["user:consumer2@example.com"] }
+}
+```
+
+Namespace-scoped consumers address tables directly (`lakehouse.sales.orders`);
+catalog-wide operations (listing all namespaces) need catalog-level read, which a
+namespace grant deliberately does not confer.
 
 ### 3.1 BigQuery sees it anyway (metastore federation)
 

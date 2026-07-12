@@ -53,24 +53,26 @@ variable "storage_bucket_name" {
 variable "enable_lakehouse" {
   type        = bool
   default     = false
-  description = "Enable lakehouse (Managed Folders, BigLake connection, BigQuery dataset, Iceberg runtime catalog)."
+  description = "Enable lakehouse (managed folders, Iceberg runtime catalog + namespaces, consumer IAM)."
 }
 
 variable "datasets" {
   type = map(object({
     description = optional(string, "")
     feeders     = optional(list(string), []) # SA emails with objectAdmin on this dataset
+    consumers   = optional(list(string), []) # principals with biglake.viewer on THIS namespace only
   }))
   default     = {}
-  description = "Datasets to create as managed folders. Key = dataset name, value = { description, feeders }."
+  description = "Datasets: managed folder + Iceberg namespace each. Key = dataset name, value = { description, feeders, consumers }."
 }
 
-# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to the
-# runtime catalog via roles/biglake.viewer. No direct GCS IAM — the Iceberg
+# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to
+# EVERY dataset via project-level roles/biglake.viewer. For per-dataset access
+# use datasets[*].consumers instead. No direct GCS IAM either way — the Iceberg
 # catalog vends downscoped GCS credentials. Members use IAM syntax, e.g.
 # "user:a@example.com", "group:analysts@example.com", "serviceAccount:sa@proj.iam...".
 variable "iceberg_consumers" {
   type        = list(string)
   default     = []
-  description = "Principals granted roles/biglake.viewer to read via the Iceberg runtime catalog."
+  description = "Principals granted project-level roles/biglake.viewer (read ALL datasets)."
 }

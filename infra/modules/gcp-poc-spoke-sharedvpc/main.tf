@@ -6,9 +6,10 @@
 
 terraform {
   required_providers {
-    # >= 7.15 for google_biglake_iceberg_catalog (native Iceberg REST catalog,
-    # added in v7.15.0).
-    google = { source = "hashicorp/google", version = ">= 7.15.0, < 8.0" }
+    # >= 7.20 for the native Iceberg REST catalog resources:
+    # google_biglake_iceberg_catalog (v7.15.0), google_biglake_iceberg_namespace
+    # + its IAM resources (v7.20.0).
+    google = { source = "hashicorp/google", version = ">= 7.20.0, < 8.0" }
   }
 }
 
@@ -169,17 +170,50 @@ resource "google_storage_managed_folder_iam_member" "iceberg_catalog_writer" {
   member         = "serviceAccount:${google_biglake_iceberg_catalog.runtime[0].biglake_service_account}"
 }
 
+# One Iceberg namespace per dataset, alongside its managed folder. The seeder
+# creates namespaces if missing, so Terraform owning them is compatible; it
+# also lets per-namespace IAM below exist before any table is seeded.
+resource "google_biglake_iceberg_namespace" "dataset" {
+  for_each     = var.enable_lakehouse ? var.datasets : {}
+  project      = local.project_id
+  catalog      = google_biglake_iceberg_catalog.runtime[0].name
+  namespace_id = each.key
+}
+
 # ============================================================================
 # CONSUMER ACCESS (read) — declarative grants, no direct GCS IAM
 # ============================================================================
 
-# Open-engine consumers (Spark/Trino/PyIceberg): read via the Iceberg REST
-# catalog. biglake.viewer includes biglake.tables.getData — the permission that
-# lets the catalog vend downscoped GCS credentials to the engine. BigLake
-# catalogs are project-scoped, so the grant is project-level.
+# All-dataset consumers: project-level biglake.viewer. biglake.viewer includes
+# biglake.tables.getData — the permission that lets the catalog vend downscoped
+# GCS credentials to the engine.
 resource "google_project_iam_member" "iceberg_consumer" {
   for_each = var.enable_lakehouse ? toset(var.iceberg_consumers) : []
   project  = local.project_id
   role     = "roles/biglake.viewer"
   member   = each.value
+}
+
+# Per-dataset consumers: biglake.viewer on the dataset's namespace only. IAM
+# inherits downward (project -> catalog -> namespace -> table), so a grant here
+# covers the namespace's tables and nothing else — credential vending is
+# likewise bounded to those tables.
+locals {
+  dataset_consumers = var.enable_lakehouse ? merge([
+    for ds, cfg in var.datasets : {
+      for member in cfg.consumers : "${ds}/${member}" => {
+        dataset = ds
+        member  = member
+      }
+    }
+  ]...) : {}
+}
+
+resource "google_biglake_iceberg_namespace_iam_member" "dataset_consumer" {
+  for_each     = local.dataset_consumers
+  project      = local.project_id
+  catalog      = google_biglake_iceberg_catalog.runtime[0].name
+  namespace_id = google_biglake_iceberg_namespace.dataset[each.value.dataset].namespace_id
+  role         = "roles/biglake.viewer"
+  member       = each.value.member
 }

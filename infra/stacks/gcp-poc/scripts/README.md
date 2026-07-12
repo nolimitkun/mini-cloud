@@ -170,8 +170,10 @@ The full write-up lives in [docs/10-lakehouse-poc.md §3](../../../../docs/10-la
 
 ### Granting consumers (declarative)
 
-Consumer grants are wired in the module — set `lakehouse_iceberg_consumers` in the
-stack (no direct GCS IAM is ever added to a consumer):
+Consumer grants are wired in the module; no direct GCS IAM is ever added to a
+consumer. Two scopes:
+
+**All datasets** — `lakehouse_iceberg_consumers` (project-level `biglake.viewer`):
 
 ```hcl
 # terraform.tfvars
@@ -181,6 +183,18 @@ lakehouse_iceberg_consumers = [
 ]
 ```
 
-Each member gets `roles/biglake.viewer` (project-scoped) — which includes
-`biglake.tables.getData`, the permission the catalog needs to vend GCS
-credentials to the engine.
+**One dataset** — `lakehouse_datasets[*].consumers` (`biglake.viewer` on that
+dataset's Iceberg namespace only):
+
+```hcl
+# terraform.tfvars — consumer1 reads sales+users, consumer2 reads logs
+lakehouse_datasets = {
+  sales = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
+  users = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
+  logs  = { feeders = ["…"], consumers = ["user:consumer2@example.com"] }
+}
+```
+
+Either way the role includes `biglake.tables.getData`, the permission the
+catalog needs to vend GCS credentials to the engine — scoped to whatever level
+the grant sits at (project vs. namespace).

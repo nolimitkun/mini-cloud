@@ -86,10 +86,16 @@ variable "enable_lakehouse" {
   default = true
 }
 
+# Per-dataset consumers get roles/biglake.viewer on that dataset's Iceberg
+# namespace only, e.g. consumer1 reads sales+users, consumer2 reads logs:
+#   sales = { consumers = ["user:consumer1@example.com"] }
+#   users = { consumers = ["user:consumer1@example.com"] }
+#   logs  = { consumers = ["user:consumer2@example.com"] }
 variable "lakehouse_datasets" {
   type = map(object({
     description = optional(string, "")
     feeders     = optional(list(string), [])
+    consumers   = optional(list(string), [])
   }))
   default = {
     sales = {
@@ -107,8 +113,9 @@ variable "lakehouse_datasets" {
   }
 }
 
-# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to the
-# runtime catalog. Empty by default. Members use IAM syntax, e.g.
+# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to
+# EVERY dataset (project-level biglake.viewer). For per-dataset access use
+# lakehouse_datasets[*].consumers instead. Members use IAM syntax, e.g.
 # "user:a@example.com", "group:analysts@example.com".
 variable "lakehouse_iceberg_consumers" {
   type    = list(string)
