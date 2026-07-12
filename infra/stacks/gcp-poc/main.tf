@@ -86,11 +86,14 @@ variable "enable_lakehouse" {
   default = true
 }
 
-# Per-dataset consumers get roles/biglake.viewer on that dataset's Iceberg
-# namespace only, e.g. consumer1 reads sales+users, consumer2 reads logs:
-#   sales = { consumers = ["user:consumer1@example.com"] }
-#   users = { consumers = ["user:consumer1@example.com"] }
-#   logs  = { consumers = ["user:consumer2@example.com"] }
+# Per-dataset grants — both scoped to that dataset's Iceberg namespace/folder:
+#   feeders   (write): objectAdmin on the managed folder + biglake.editor on
+#                      the namespace (direct GCS or catalog-vended writes)
+#   consumers (read):  biglake.viewer on the namespace
+# e.g. feeder1/consumer1 on sales+users, feeder2/consumer2 on logs:
+#   sales = { feeders = ["feeder1@…"], consumers = ["user:consumer1@example.com"] }
+#   users = { feeders = ["feeder1@…"], consumers = ["user:consumer1@example.com"] }
+#   logs  = { feeders = ["feeder2@…"], consumers = ["user:consumer2@example.com"] }
 variable "lakehouse_datasets" {
   type = map(object({
     description = optional(string, "")

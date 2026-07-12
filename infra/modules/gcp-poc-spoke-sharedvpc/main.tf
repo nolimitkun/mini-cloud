@@ -119,9 +119,10 @@ resource "google_storage_managed_folder" "dataset" {
   force_destroy = true
 }
 
-# Feeder IAM — objectAdmin (read + write + delete) on each dataset folder.
-resource "google_storage_managed_folder_iam_member" "feeder" {
-  for_each = var.enable_lakehouse ? merge([
+# One (dataset, feeder) pair per grant — shared by the direct-GCS folder grant
+# and the namespace-scoped catalog-write grant below.
+locals {
+  dataset_feeders = var.enable_lakehouse ? merge([
     for ds, cfg in var.datasets : {
       for feeder in cfg.feeders : "${ds}/${feeder}" => {
         dataset = ds
@@ -129,7 +130,11 @@ resource "google_storage_managed_folder_iam_member" "feeder" {
       }
     }
   ]...) : {}
+}
 
+# Feeder IAM — objectAdmin (read + write + delete) on each dataset folder.
+resource "google_storage_managed_folder_iam_member" "feeder" {
+  for_each       = local.dataset_feeders
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.value.dataset].name
   role           = "roles/storage.objectAdmin"
@@ -216,4 +221,22 @@ resource "google_biglake_iceberg_namespace_iam_member" "dataset_consumer" {
   namespace_id = google_biglake_iceberg_namespace.dataset[each.value.dataset].namespace_id
   role         = "roles/biglake.viewer"
   member       = each.value.member
+}
+
+# ============================================================================
+# FEEDER ACCESS (write) — namespace-scoped catalog writes
+# ============================================================================
+
+# Per-dataset feeder catalog-write: biglake.editor on the dataset's namespace,
+# so a feeder can commit through the Iceberg REST catalog with vended write
+# credentials — scoped to its datasets only, mirroring the consumer grants.
+# The direct-GCS objectAdmin folder grant above covers engines that write
+# files with their own identity instead.
+resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
+  for_each     = local.dataset_feeders
+  project      = local.project_id
+  catalog      = google_biglake_iceberg_catalog.runtime[0].name
+  namespace_id = google_biglake_iceberg_namespace.dataset[each.value.dataset].namespace_id
+  role         = "roles/biglake.editor"
+  member       = "serviceAccount:${each.value.feeder}"
 }

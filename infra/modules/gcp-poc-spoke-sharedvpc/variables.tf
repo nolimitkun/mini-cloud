@@ -59,7 +59,7 @@ variable "enable_lakehouse" {
 variable "datasets" {
   type = map(object({
     description = optional(string, "")
-    feeders     = optional(list(string), []) # SA emails with objectAdmin on this dataset
+    feeders     = optional(list(string), []) # SA emails: objectAdmin on this dataset's folder + biglake.editor on its namespace
     consumers   = optional(list(string), []) # principals with biglake.viewer on THIS namespace only
   }))
   default     = {}

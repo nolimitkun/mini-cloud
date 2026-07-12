@@ -152,10 +152,13 @@ per-folder ACLs tiny: only **feeders** and the **catalog vending SA** ever hold
 direct GCS IAM; consumers borrow GCS access indirectly.
 
 **Feeders (write).** Configured per dataset via `lakehouse_datasets[*].feeders`
-in the stack. Each feeder SA gets `roles/storage.objectAdmin` on that dataset's
-managed folder (`google_storage_managed_folder_iam_member.feeder`) and writes
-Parquet + Iceberg metadata straight to GCS. This PoC feeds all three datasets
-from the hub compute SA `311800512343-compute@developer.gserviceaccount.com`.
+in the stack. Each feeder SA gets two dataset-scoped grants:
+`roles/storage.objectAdmin` on the managed folder (direct Parquet + Iceberg
+metadata writes to GCS) and `roles/biglake.editor` on the Iceberg namespace
+(commits via the REST catalog with vended write credentials). This PoC feeds
+all three datasets from the hub compute SA
+`311800512343-compute@developer.gserviceaccount.com`; per-dataset writers are
+just tfvars, e.g. feeder1 on `sales`+`users`, feeder2 on `logs`.
 
 **Consumers (read) — no per-consumer GCS IAM.** Spark / Trino / Flink / PyIceberg
 query through the Iceberg REST runtime catalog. The catalog's vending SA

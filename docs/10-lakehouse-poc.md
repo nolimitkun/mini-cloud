@@ -59,7 +59,7 @@ out of scope — see [§7](#7-when-a-knowledge-catalog-is-worth-adding).
 
 ---
 
-## 2. Terraform resources (15 lakehouse resources)
+## 2. Terraform resources (18 lakehouse resources)
 
 All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse = true`.
 
@@ -83,12 +83,13 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 | `google_storage_bucket.data` | `mini-cloud-lakehouse-data`, UBLA enforced, public access prevented |
 | `google_storage_managed_folder.dataset` (×3) | `sales/`, `users/`, `logs/` |
 
-### IAM bindings (6 folder bindings + optional consumers)
+### IAM bindings (6 folder + 3 namespace bindings + optional consumers)
 
-| Principal | Role | Folders | Purpose |
+| Principal | Role | Scope | Purpose |
 |---|---|---|---|
-| `311800512343-compute@developer` (hub feeder) | `storage.objectAdmin` | all 3 | Direct write to GCS |
-| `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 | Vended credentials for Spark/Trino via Iceberg catalog |
+| `lakehouse_datasets[*].feeders` (hub compute SA ×3 here) | `storage.objectAdmin` | one managed folder | Direct write to GCS |
+| `lakehouse_datasets[*].feeders` (same) | `roles/biglake.editor` | one namespace | Catalog-vended write via Iceberg REST |
+| `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 folders | Vended credentials for Spark/Trino via Iceberg catalog |
 | `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read ALL datasets via Iceberg REST — no GCS IAM (empty by default) |
 | `lakehouse_datasets[*].consumers` | `roles/biglake.viewer` | one namespace | Read ONE dataset via Iceberg REST — no GCS IAM (empty by default) |
 
@@ -98,10 +99,26 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 
 ### Feeder (write)
 
-The hub project `mini-cloud-499820` writes directly to GCS via its compute SA.
-Granted `storage.objectAdmin` on each managed folder. Spark/Flink jobs write
-Parquet data files and commit Iceberg table metadata to the `metadata/` prefix
-within each folder.
+Feeders are per dataset (`lakehouse_datasets[*].feeders`) and each gets **two**
+grants, both scoped to that dataset:
+
+- `storage.objectAdmin` on the managed folder — direct GCS writes (Parquet data
+  files + Iceberg metadata under the `metadata/` prefix).
+- `roles/biglake.editor` on the Iceberg namespace — commits through the REST
+  catalog with vended **write** credentials, mirroring the consumer model.
+
+This PoC feeds all three datasets from the hub compute SA; splitting writers
+works the same way as consumers — e.g. feeder1 writes `sales`+`users`, feeder2
+writes `logs`:
+
+```hcl
+# terraform.tfvars
+lakehouse_datasets = {
+  sales = { feeders = ["feeder1@proj.iam.gserviceaccount.com"], … }
+  users = { feeders = ["feeder1@proj.iam.gserviceaccount.com"], … }
+  logs  = { feeders = ["feeder2@proj.iam.gserviceaccount.com"], … }
+}
+```
 
 ### Open-source engine consumer (read)
 
