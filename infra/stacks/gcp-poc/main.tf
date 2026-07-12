@@ -11,6 +11,9 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+  # BigLake IAM calls require a quota project; charge each resource's own
+  # project instead of relying on the local ADC quota-project setting.
+  user_project_override = true
 }
 
 variable "project_id" { type = string }
@@ -86,10 +89,22 @@ variable "enable_lakehouse" {
   default = true
 }
 
+# Per-dataset grants — both scoped to that dataset's Iceberg namespace/folder:
+#   feeders   (write): objectAdmin on the managed folder + biglake.editor on
+#                      the namespace (direct GCS or catalog-vended writes)
+#   consumers (read):  biglake.viewer on the namespace
+# e.g. feeder1/consumer1 on sales+users, feeder2/consumer2 on logs:
+#   sales = { feeders = ["feeder1@…"], consumers = ["user:consumer1@example.com"] }
+#   users = { feeders = ["feeder1@…"], consumers = ["user:consumer1@example.com"] }
+#   logs  = { feeders = ["feeder2@…"], consumers = ["user:consumer2@example.com"] }
+# CAUTION: a tfvars value REPLACES this whole map (no merge with the default
+# below) — restate every dataset's feeders when overriding, or their existing
+# write grants (the hub compute SA here) are destroyed on apply.
 variable "lakehouse_datasets" {
   type = map(object({
     description = optional(string, "")
     feeders     = optional(list(string), [])
+    consumers   = optional(list(string), [])
   }))
   default = {
     sales = {
@@ -107,12 +122,21 @@ variable "lakehouse_datasets" {
   }
 }
 
-# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to the
-# runtime catalog. Empty by default. Members use IAM syntax, e.g.
+# Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to
+# EVERY dataset (project-level biglake.viewer). For per-dataset access use
+# lakehouse_datasets[*].consumers instead. Members use IAM syntax, e.g.
 # "user:a@example.com", "group:analysts@example.com".
 variable "lakehouse_iceberg_consumers" {
   type    = list(string)
   default = []
+}
+
+# PoC: REST-catalog callers charge the lakehouse project as quota project
+# (x-goog-user-project) via a serviceusage.serviceUsageConsumer grant. Set
+# false for the production model (callers use their own quota project).
+variable "lakehouse_grant_quota_access" {
+  type    = bool
+  default = true
 }
 
 module "vpn_poc" {
@@ -158,9 +182,10 @@ module "spoke_shared" {
   storage_bucket_name = var.storage_bucket_name
 
   # Lakehouse
-  enable_lakehouse  = var.enable_lakehouse
-  datasets          = var.lakehouse_datasets
-  iceberg_consumers = var.lakehouse_iceberg_consumers
+  enable_lakehouse           = var.enable_lakehouse
+  datasets                   = var.lakehouse_datasets
+  iceberg_consumers          = var.lakehouse_iceberg_consumers
+  grant_quota_project_access = var.lakehouse_grant_quota_access
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }

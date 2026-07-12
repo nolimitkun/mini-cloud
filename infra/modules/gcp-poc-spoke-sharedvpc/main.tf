@@ -6,9 +6,10 @@
 
 terraform {
   required_providers {
-    # >= 7.15 for google_biglake_iceberg_catalog (native Iceberg REST catalog,
-    # added in v7.15.0).
-    google = { source = "hashicorp/google", version = ">= 7.15.0, < 8.0" }
+    # >= 7.20 for the native Iceberg REST catalog resources:
+    # google_biglake_iceberg_catalog (v7.15.0), google_biglake_iceberg_namespace
+    # + its IAM resources (v7.20.0).
+    google = { source = "hashicorp/google", version = ">= 7.20.0, < 8.0" }
   }
 }
 
@@ -118,9 +119,10 @@ resource "google_storage_managed_folder" "dataset" {
   force_destroy = true
 }
 
-# Feeder IAM — objectAdmin (read + write + delete) on each dataset folder.
-resource "google_storage_managed_folder_iam_member" "feeder" {
-  for_each = var.enable_lakehouse ? merge([
+# One (dataset, feeder) pair per grant — shared by the direct-GCS folder grant
+# and the namespace-scoped catalog-write grant below.
+locals {
+  dataset_feeders = var.enable_lakehouse ? merge([
     for ds, cfg in var.datasets : {
       for feeder in cfg.feeders : "${ds}/${feeder}" => {
         dataset = ds
@@ -128,7 +130,11 @@ resource "google_storage_managed_folder_iam_member" "feeder" {
       }
     }
   ]...) : {}
+}
 
+# Feeder IAM — objectAdmin (read + write + delete) on each dataset folder.
+resource "google_storage_managed_folder_iam_member" "feeder" {
+  for_each       = local.dataset_feeders
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.value.dataset].name
   role           = "roles/storage.objectAdmin"
@@ -169,17 +175,96 @@ resource "google_storage_managed_folder_iam_member" "iceberg_catalog_writer" {
   member         = "serviceAccount:${google_biglake_iceberg_catalog.runtime[0].biglake_service_account}"
 }
 
+# One Iceberg namespace per dataset, alongside its managed folder. The seeder
+# creates namespaces if missing, so Terraform owning them is compatible; it
+# also lets per-namespace IAM below exist before any table is seeded.
+resource "google_biglake_iceberg_namespace" "dataset" {
+  for_each     = var.enable_lakehouse ? var.datasets : {}
+  project      = local.project_id
+  catalog      = google_biglake_iceberg_catalog.runtime[0].name
+  namespace_id = each.key
+}
+
 # ============================================================================
 # CONSUMER ACCESS (read) — declarative grants, no direct GCS IAM
 # ============================================================================
 
-# Open-engine consumers (Spark/Trino/PyIceberg): read via the Iceberg REST
-# catalog. biglake.viewer includes biglake.tables.getData — the permission that
-# lets the catalog vend downscoped GCS credentials to the engine. BigLake
-# catalogs are project-scoped, so the grant is project-level.
+# All-dataset consumers: project-level biglake.viewer. biglake.viewer includes
+# biglake.tables.getData — the permission that lets the catalog vend downscoped
+# GCS credentials to the engine.
 resource "google_project_iam_member" "iceberg_consumer" {
   for_each = var.enable_lakehouse ? toset(var.iceberg_consumers) : []
   project  = local.project_id
   role     = "roles/biglake.viewer"
+  member   = each.value
+}
+
+# Per-dataset consumers: biglake.viewer on the dataset's namespace only. IAM
+# inherits downward (project -> catalog -> namespace -> table), so a grant here
+# covers the namespace's tables and nothing else — credential vending is
+# likewise bounded to those tables.
+locals {
+  dataset_consumers = var.enable_lakehouse ? merge([
+    for ds, cfg in var.datasets : {
+      for member in cfg.consumers : "${ds}/${member}" => {
+        dataset = ds
+        member  = member
+      }
+    }
+  ]...) : {}
+}
+
+resource "google_biglake_iceberg_namespace_iam_member" "dataset_consumer" {
+  for_each     = local.dataset_consumers
+  project      = local.project_id
+  catalog      = google_biglake_iceberg_catalog.runtime[0].name
+  namespace_id = google_biglake_iceberg_namespace.dataset[each.value.dataset].namespace_id
+  role         = "roles/biglake.viewer"
+  member       = each.value.member
+}
+
+# ============================================================================
+# FEEDER ACCESS (write) — namespace-scoped catalog writes
+# ============================================================================
+
+# Per-dataset feeder catalog-write: biglake.editor on the dataset's namespace,
+# so a feeder can commit through the Iceberg REST catalog with vended write
+# credentials — scoped to its datasets only, mirroring the consumer grants.
+# The direct-GCS objectAdmin folder grant above covers engines that write
+# files with their own identity instead.
+resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
+  for_each     = local.dataset_feeders
+  project      = local.project_id
+  catalog      = google_biglake_iceberg_catalog.runtime[0].name
+  namespace_id = google_biglake_iceberg_namespace.dataset[each.value.dataset].namespace_id
+  role         = "roles/biglake.editor"
+  member       = "serviceAccount:${each.value.feeder}"
+}
+
+# ============================================================================
+# QUOTA PROJECT ACCESS — REST catalog callers charge this project (PoC model)
+# ============================================================================
+
+# Iceberg REST calls carry `x-goog-user-project`, and naming a quota project
+# requires serviceusage.services.use ON that project — biglake.viewer/editor
+# don't include it. This grant lets cross-project feeders/consumers charge the
+# lakehouse project, so the documented client config works with zero setup on
+# their side. Metadata-only: no data/resource access.
+#
+# Production alternative: set grant_quota_project_access = false and have each
+# caller set x-goog-user-project to its OWN project (needs biglake API enabled
+# there) — per-team quota isolation + cost attribution. See doc 10 §3.
+locals {
+  quota_project_users = var.enable_lakehouse && var.grant_quota_project_access ? toset(concat(
+    [for pair in values(local.dataset_feeders) : "serviceAccount:${pair.feeder}"],
+    [for pair in values(local.dataset_consumers) : pair.member],
+    var.iceberg_consumers,
+  )) : toset([])
+}
+
+resource "google_project_iam_member" "quota_project_user" {
+  for_each = local.quota_project_users
+  project  = local.project_id
+  role     = "roles/serviceusage.serviceUsageConsumer"
   member   = each.value
 }

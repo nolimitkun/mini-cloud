@@ -59,7 +59,7 @@ out of scope — see [§7](#7-when-a-knowledge-catalog-is-worth-adding).
 
 ---
 
-## 2. Terraform resources (12 lakehouse resources)
+## 2. Terraform resources (19 lakehouse resources)
 
 All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse = true`.
 
@@ -74,6 +74,7 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 | Resource | Detail |
 |---|---|
 | `google_biglake_iceberg_catalog.runtime` | Iceberg REST catalog, `gcs-bucket` type, vended credentials; exports the credential-vending SA (`biglake_service_account`) at plan/apply time |
+| `google_biglake_iceberg_namespace.dataset` (×3) | One namespace per dataset (`sales`/`users`/`logs`) — the IAM anchor for per-dataset consumer grants |
 
 ### Storage
 
@@ -82,13 +83,16 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 | `google_storage_bucket.data` | `mini-cloud-lakehouse-data`, UBLA enforced, public access prevented |
 | `google_storage_managed_folder.dataset` (×3) | `sales/`, `users/`, `logs/` |
 
-### IAM bindings (6 folder bindings + optional consumers)
+### IAM bindings (6 folder + 3 namespace bindings + optional consumers)
 
-| Principal | Role | Folders | Purpose |
+| Principal | Role | Scope | Purpose |
 |---|---|---|---|
-| `311800512343-compute@developer` (hub feeder) | `storage.objectAdmin` | all 3 | Direct write to GCS |
-| `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 | Vended credentials for Spark/Trino via Iceberg catalog |
-| `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read via Iceberg REST — no GCS IAM (empty by default) |
+| `lakehouse_datasets[*].feeders` (hub compute SA ×3 here) | `storage.objectAdmin` | one managed folder | Direct write to GCS |
+| `lakehouse_datasets[*].feeders` (same) | `roles/biglake.editor` | one namespace | Catalog-vended write via Iceberg REST |
+| `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 folders | Vended credentials for Spark/Trino via Iceberg catalog |
+| `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read ALL datasets via Iceberg REST — no GCS IAM (empty by default) |
+| `lakehouse_datasets[*].consumers` | `roles/biglake.viewer` | one namespace | Read ONE dataset via Iceberg REST — no GCS IAM (empty by default) |
+| all feeders + consumers (deduped) | `roles/serviceusage.serviceUsageConsumer` | project | Charge REST-catalog calls to this quota project (PoC model — see §3) |
 
 ---
 
@@ -96,10 +100,26 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 
 ### Feeder (write)
 
-The hub project `mini-cloud-499820` writes directly to GCS via its compute SA.
-Granted `storage.objectAdmin` on each managed folder. Spark/Flink jobs write
-Parquet data files and commit Iceberg table metadata to the `metadata/` prefix
-within each folder.
+Feeders are per dataset (`lakehouse_datasets[*].feeders`) and each gets **two**
+grants, both scoped to that dataset:
+
+- `storage.objectAdmin` on the managed folder — direct GCS writes (Parquet data
+  files + Iceberg metadata under the `metadata/` prefix).
+- `roles/biglake.editor` on the Iceberg namespace — commits through the REST
+  catalog with vended **write** credentials, mirroring the consumer model.
+
+This PoC feeds all three datasets from the hub compute SA; splitting writers
+works the same way as consumers — e.g. feeder1 writes `sales`+`users`, feeder2
+writes `logs`:
+
+```hcl
+# terraform.tfvars (restate consumers too — the map replaces the default wholesale)
+lakehouse_datasets = {
+  sales = { feeders = ["feeder1@proj.iam.gserviceaccount.com"], … }
+  users = { feeders = ["feeder1@proj.iam.gserviceaccount.com"], … }
+  logs  = { feeders = ["feeder2@proj.iam.gserviceaccount.com"], … }
+}
+```
 
 ### Open-source engine consumer (read)
 
@@ -115,6 +135,70 @@ spark.sql.catalog.lakehouse.credential = vended-credentials
 
 The catalog SA (`blirc-...`) vends downscoped GCS tokens. The engine does not
 need its own GCS service account key.
+
+### Per-dataset consumers (namespace-scoped read)
+
+BigLake IAM inherits downward (project → catalog → namespace → table), so where the
+`biglake.viewer` grant sits decides the blast radius:
+
+- `lakehouse_iceberg_consumers` → **project**-level → reads every dataset.
+- `lakehouse_datasets[*].consumers` → **namespace**-level
+  (`google_biglake_iceberg_namespace_iam_member`) → reads that dataset only; credential
+  vending is bounded the same way.
+
+Example — consumer1 reads `sales` + `users`, consumer2 reads `logs` only:
+
+```hcl
+# terraform.tfvars — restate feeders: this REPLACES the variable's default map,
+# so omitting them (they default to []) destroys the existing write grants.
+lakehouse_datasets = {
+  sales = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  users = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  logs = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer2@example.com"]
+  }
+}
+```
+
+Namespace-scoped consumers address tables directly (`lakehouse.sales.orders`);
+catalog-wide operations (listing all namespaces) need catalog-level read, which a
+namespace grant deliberately does not confer.
+
+### Cross-project callers & the quota project
+
+Feeders/consumers run compute in **their own projects**; the lakehouse project holds only the
+bucket + catalog. Data access needs no network path between the projects — engines call the
+Google API front door (`biglake.googleapis.com`, `storage.googleapis.com`), gated by the IAM
+above. Two operational requirements follow:
+
+1. **Private Google Access** on the caller's subnets (their VMs have no external IPs under
+   this design's no-public-exposure rule).
+2. **A quota project** for REST-catalog calls: every request carries `x-goog-user-project`,
+   and naming a project requires `serviceusage.services.use` on it — which
+   `biglake.viewer`/`editor` do **not** include. Two models:
+
+| | PoC (default) | Production |
+|---|---|---|
+| Toggle | `lakehouse_grant_quota_access = true` | `false` |
+| Header | `x-goog-user-project: mini-cloud-lakehouse` | caller's **own** project |
+| Lakehouse-side IAM | auto-grant `roles/serviceusage.serviceUsageConsumer` to every feeder/consumer (metadata-only, no data access) | none beyond the namespace grants |
+| Caller-side setup | none | enable `biglake.googleapis.com` in own project; SA needs `serviceusage.services.use` there (default compute SAs have it; minimal custom SAs need an explicit grant) |
+| Quota & cost attribution | shared pool on the lakehouse project — a runaway consumer job can throttle others | per-team isolation; BigLake API usage lands on each caller's project |
+
+The PoC model keeps "add a consumer = one tfvars line" true and matches the published client
+examples. Switch to the production model when teams need quota isolation/cost attribution: flip
+the toggle and each caller changes one header. The models compose — the grant doesn't stop a
+caller from using its own quota project, so migration can be gradual. (BigQuery federation
+readers are exempt from all of this: 4-part-name queries bill the querying project's BigQuery
+job, no BigLake quota involved. And a feeder writing directly to GCS via its folder grant never
+touches the BigLake API either.)
 
 ### 3.1 BigQuery sees it anyway (metastore federation)
 
@@ -196,6 +280,25 @@ terraform import 'module.spoke_shared[0].google_biglake_iceberg_catalog.runtime[
   mini-cloud-lakehouse/mini-cloud-lakehouse-data
 terraform plan   # expect: no create/destroy of the catalog; IAM bindings unchanged
 ```
+
+### Migrating a deployment seeded before Terraform owned the namespaces
+
+Same idea for the namespaces: `seed_lakehouse.py` created `sales`/`users`/`logs` in the live
+catalog, so on a pre-existing deployment they exist but are not in state — a plain apply would
+try to create them and fail with `AlreadyExists`. Import them first
+(`{{project}}/{{catalog}}/{{namespace_id}}`):
+
+```bash
+cd infra/stacks/gcp-poc
+for ns in sales users logs; do
+  terraform import "module.spoke_shared[0].google_biglake_iceberg_namespace.dataset[\"$ns\"]" \
+    "mini-cloud-lakehouse/mini-cloud-lakehouse-data/$ns"
+done
+terraform plan   # expect: only the new IAM grants, no namespace create
+```
+
+(Both migrations have been executed against the live `mini-cloud-lakehouse` deployment —
+they're documented for replicas of this stack.)
 
 ---
 

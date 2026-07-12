@@ -40,7 +40,11 @@ Point any Iceberg REST client at the catalog:
 - **URI:** `https://biglake.googleapis.com/iceberg/v1/restcatalog`
 - **Warehouse:** `gs://<bucket>`
 - **Auth:** `Authorization: Bearer $(gcloud auth print-access-token)`
-- **Header:** `x-goog-user-project: <spoke project>`
+- **Header:** `x-goog-user-project: <spoke project>` — the quota project. PoC model:
+  cross-project callers may name the lakehouse project (the module grants them
+  `serviceusage.serviceUsageConsumer`). Production model
+  (`lakehouse_grant_quota_access = false`): name your **own** project instead and
+  enable `biglake.googleapis.com` there. See doc 10 §3.
 - **Header:** `X-Iceberg-Access-Delegation: vended-credentials` — required so the
   catalog vends downscoped GCS credentials; without it the client must reach the
   bucket with its own IAM, defeating the `biglake.viewer`-only consumer model.
@@ -152,10 +156,13 @@ per-folder ACLs tiny: only **feeders** and the **catalog vending SA** ever hold
 direct GCS IAM; consumers borrow GCS access indirectly.
 
 **Feeders (write).** Configured per dataset via `lakehouse_datasets[*].feeders`
-in the stack. Each feeder SA gets `roles/storage.objectAdmin` on that dataset's
-managed folder (`google_storage_managed_folder_iam_member.feeder`) and writes
-Parquet + Iceberg metadata straight to GCS. This PoC feeds all three datasets
-from the hub compute SA `311800512343-compute@developer.gserviceaccount.com`.
+in the stack. Each feeder SA gets two dataset-scoped grants:
+`roles/storage.objectAdmin` on the managed folder (direct Parquet + Iceberg
+metadata writes to GCS) and `roles/biglake.editor` on the Iceberg namespace
+(commits via the REST catalog with vended write credentials). This PoC feeds
+all three datasets from the hub compute SA
+`311800512343-compute@developer.gserviceaccount.com`; per-dataset writers are
+just tfvars, e.g. feeder1 on `sales`+`users`, feeder2 on `logs`.
 
 **Consumers (read) — no per-consumer GCS IAM.** Spark / Trino / Flink / PyIceberg
 query through the Iceberg REST runtime catalog. The catalog's vending SA
@@ -170,8 +177,10 @@ The full write-up lives in [docs/10-lakehouse-poc.md §3](../../../../docs/10-la
 
 ### Granting consumers (declarative)
 
-Consumer grants are wired in the module — set `lakehouse_iceberg_consumers` in the
-stack (no direct GCS IAM is ever added to a consumer):
+Consumer grants are wired in the module; no direct GCS IAM is ever added to a
+consumer. Two scopes:
+
+**All datasets** — `lakehouse_iceberg_consumers` (project-level `biglake.viewer`):
 
 ```hcl
 # terraform.tfvars
@@ -181,6 +190,29 @@ lakehouse_iceberg_consumers = [
 ]
 ```
 
-Each member gets `roles/biglake.viewer` (project-scoped) — which includes
-`biglake.tables.getData`, the permission the catalog needs to vend GCS
-credentials to the engine.
+**One dataset** — `lakehouse_datasets[*].consumers` (`biglake.viewer` on that
+dataset's Iceberg namespace only):
+
+```hcl
+# terraform.tfvars — consumer1 reads sales+users, consumer2 reads logs.
+# Restate feeders: a tfvars map REPLACES the stack default (no merge), and
+# omitted feeders default to [] — which destroys the existing write grants.
+lakehouse_datasets = {
+  sales = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  users = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  logs = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer2@example.com"]
+  }
+}
+```
+
+Either way the role includes `biglake.tables.getData`, the permission the
+catalog needs to vend GCS credentials to the engine — scoped to whatever level
+the grant sits at (project vs. namespace).
