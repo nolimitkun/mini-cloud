@@ -113,7 +113,7 @@ works the same way as consumers — e.g. feeder1 writes `sales`+`users`, feeder2
 writes `logs`:
 
 ```hcl
-# terraform.tfvars
+# terraform.tfvars (restate consumers too — the map replaces the default wholesale)
 lakehouse_datasets = {
   sales = { feeders = ["feeder1@proj.iam.gserviceaccount.com"], … }
   users = { feeders = ["feeder1@proj.iam.gserviceaccount.com"], … }
@@ -149,11 +149,21 @@ BigLake IAM inherits downward (project → catalog → namespace → table), so 
 Example — consumer1 reads `sales` + `users`, consumer2 reads `logs` only:
 
 ```hcl
-# terraform.tfvars
+# terraform.tfvars — restate feeders: this REPLACES the variable's default map,
+# so omitting them (they default to []) destroys the existing write grants.
 lakehouse_datasets = {
-  sales = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
-  users = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
-  logs  = { feeders = ["…"], consumers = ["user:consumer2@example.com"] }
+  sales = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  users = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  logs = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer2@example.com"]
+  }
 }
 ```
 
@@ -270,6 +280,25 @@ terraform import 'module.spoke_shared[0].google_biglake_iceberg_catalog.runtime[
   mini-cloud-lakehouse/mini-cloud-lakehouse-data
 terraform plan   # expect: no create/destroy of the catalog; IAM bindings unchanged
 ```
+
+### Migrating a deployment seeded before Terraform owned the namespaces
+
+Same idea for the namespaces: `seed_lakehouse.py` created `sales`/`users`/`logs` in the live
+catalog, so on a pre-existing deployment they exist but are not in state — a plain apply would
+try to create them and fail with `AlreadyExists`. Import them first
+(`{{project}}/{{catalog}}/{{namespace_id}}`):
+
+```bash
+cd infra/stacks/gcp-poc
+for ns in sales users logs; do
+  terraform import "module.spoke_shared[0].google_biglake_iceberg_namespace.dataset[\"$ns\"]" \
+    "mini-cloud-lakehouse/mini-cloud-lakehouse-data/$ns"
+done
+terraform plan   # expect: only the new IAM grants, no namespace create
+```
+
+(Both migrations have been executed against the live `mini-cloud-lakehouse` deployment —
+they're documented for replicas of this stack.)
 
 ---
 

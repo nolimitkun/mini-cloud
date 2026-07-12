@@ -97,6 +97,9 @@ variable "enable_lakehouse" {
 #   sales = { feeders = ["feeder1@…"], consumers = ["user:consumer1@example.com"] }
 #   users = { feeders = ["feeder1@…"], consumers = ["user:consumer1@example.com"] }
 #   logs  = { feeders = ["feeder2@…"], consumers = ["user:consumer2@example.com"] }
+# CAUTION: a tfvars value REPLACES this whole map (no merge with the default
+# below) — restate every dataset's feeders when overriding, or their existing
+# write grants (the hub compute SA here) are destroyed on apply.
 variable "lakehouse_datasets" {
   type = map(object({
     description = optional(string, "")

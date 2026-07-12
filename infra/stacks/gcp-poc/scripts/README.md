@@ -194,11 +194,22 @@ lakehouse_iceberg_consumers = [
 dataset's Iceberg namespace only):
 
 ```hcl
-# terraform.tfvars — consumer1 reads sales+users, consumer2 reads logs
+# terraform.tfvars — consumer1 reads sales+users, consumer2 reads logs.
+# Restate feeders: a tfvars map REPLACES the stack default (no merge), and
+# omitted feeders default to [] — which destroys the existing write grants.
 lakehouse_datasets = {
-  sales = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
-  users = { feeders = ["…"], consumers = ["user:consumer1@example.com"] }
-  logs  = { feeders = ["…"], consumers = ["user:consumer2@example.com"] }
+  sales = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  users = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer1@example.com"]
+  }
+  logs = {
+    feeders   = ["311800512343-compute@developer.gserviceaccount.com"]
+    consumers = ["user:consumer2@example.com"]
+  }
 }
 ```
 
