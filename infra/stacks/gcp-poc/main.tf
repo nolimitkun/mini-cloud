@@ -11,6 +11,9 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+  # BigLake IAM calls require a quota project; charge each resource's own
+  # project instead of relying on the local ADC quota-project setting.
+  user_project_override = true
 }
 
 variable "project_id" { type = string }
