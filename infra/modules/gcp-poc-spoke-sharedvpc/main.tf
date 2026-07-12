@@ -240,3 +240,31 @@ resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
   role         = "roles/biglake.editor"
   member       = "serviceAccount:${each.value.feeder}"
 }
+
+# ============================================================================
+# QUOTA PROJECT ACCESS — REST catalog callers charge this project (PoC model)
+# ============================================================================
+
+# Iceberg REST calls carry `x-goog-user-project`, and naming a quota project
+# requires serviceusage.services.use ON that project — biglake.viewer/editor
+# don't include it. This grant lets cross-project feeders/consumers charge the
+# lakehouse project, so the documented client config works with zero setup on
+# their side. Metadata-only: no data/resource access.
+#
+# Production alternative: set grant_quota_project_access = false and have each
+# caller set x-goog-user-project to its OWN project (needs biglake API enabled
+# there) — per-team quota isolation + cost attribution. See doc 10 §3.
+locals {
+  quota_project_users = var.enable_lakehouse && var.grant_quota_project_access ? toset(concat(
+    [for pair in values(local.dataset_feeders) : "serviceAccount:${pair.feeder}"],
+    [for pair in values(local.dataset_consumers) : pair.member],
+    var.iceberg_consumers,
+  )) : toset([])
+}
+
+resource "google_project_iam_member" "quota_project_user" {
+  for_each = local.quota_project_users
+  project  = local.project_id
+  role     = "roles/serviceusage.serviceUsageConsumer"
+  member   = each.value
+}

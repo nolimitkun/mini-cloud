@@ -59,7 +59,7 @@ out of scope — see [§7](#7-when-a-knowledge-catalog-is-worth-adding).
 
 ---
 
-## 2. Terraform resources (18 lakehouse resources)
+## 2. Terraform resources (19 lakehouse resources)
 
 All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse = true`.
 
@@ -92,6 +92,7 @@ All live in the `gcp-poc-spoke-sharedvpc` module, toggled by `enable_lakehouse =
 | `blirc-367509735644-7den@gcp-sa-biglakerestcatalog` | `storage.objectUser` | all 3 folders | Vended credentials for Spark/Trino via Iceberg catalog |
 | `lakehouse_iceberg_consumers[*]` | `roles/biglake.viewer` | project | Read ALL datasets via Iceberg REST — no GCS IAM (empty by default) |
 | `lakehouse_datasets[*].consumers` | `roles/biglake.viewer` | one namespace | Read ONE dataset via Iceberg REST — no GCS IAM (empty by default) |
+| all feeders + consumers (deduped) | `roles/serviceusage.serviceUsageConsumer` | project | Charge REST-catalog calls to this quota project (PoC model — see §3) |
 
 ---
 
@@ -159,6 +160,35 @@ lakehouse_datasets = {
 Namespace-scoped consumers address tables directly (`lakehouse.sales.orders`);
 catalog-wide operations (listing all namespaces) need catalog-level read, which a
 namespace grant deliberately does not confer.
+
+### Cross-project callers & the quota project
+
+Feeders/consumers run compute in **their own projects**; the lakehouse project holds only the
+bucket + catalog. Data access needs no network path between the projects — engines call the
+Google API front door (`biglake.googleapis.com`, `storage.googleapis.com`), gated by the IAM
+above. Two operational requirements follow:
+
+1. **Private Google Access** on the caller's subnets (their VMs have no external IPs under
+   this design's no-public-exposure rule).
+2. **A quota project** for REST-catalog calls: every request carries `x-goog-user-project`,
+   and naming a project requires `serviceusage.services.use` on it — which
+   `biglake.viewer`/`editor` do **not** include. Two models:
+
+| | PoC (default) | Production |
+|---|---|---|
+| Toggle | `lakehouse_grant_quota_access = true` | `false` |
+| Header | `x-goog-user-project: mini-cloud-lakehouse` | caller's **own** project |
+| Lakehouse-side IAM | auto-grant `roles/serviceusage.serviceUsageConsumer` to every feeder/consumer (metadata-only, no data access) | none beyond the namespace grants |
+| Caller-side setup | none | enable `biglake.googleapis.com` in own project; SA needs `serviceusage.services.use` there (default compute SAs have it; minimal custom SAs need an explicit grant) |
+| Quota & cost attribution | shared pool on the lakehouse project — a runaway consumer job can throttle others | per-team isolation; BigLake API usage lands on each caller's project |
+
+The PoC model keeps "add a consumer = one tfvars line" true and matches the published client
+examples. Switch to the production model when teams need quota isolation/cost attribution: flip
+the toggle and each caller changes one header. The models compose — the grant doesn't stop a
+caller from using its own quota project, so migration can be gradual. (BigQuery federation
+readers are exempt from all of this: 4-part-name queries bill the querying project's BigQuery
+job, no BigLake quota involved. And a feeder writing directly to GCS via its folder grant never
+touches the BigLake API either.)
 
 ### 3.1 BigQuery sees it anyway (metastore federation)
 

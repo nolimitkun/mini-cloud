@@ -40,7 +40,11 @@ Point any Iceberg REST client at the catalog:
 - **URI:** `https://biglake.googleapis.com/iceberg/v1/restcatalog`
 - **Warehouse:** `gs://<bucket>`
 - **Auth:** `Authorization: Bearer $(gcloud auth print-access-token)`
-- **Header:** `x-goog-user-project: <spoke project>`
+- **Header:** `x-goog-user-project: <spoke project>` — the quota project. PoC model:
+  cross-project callers may name the lakehouse project (the module grants them
+  `serviceusage.serviceUsageConsumer`). Production model
+  (`lakehouse_grant_quota_access = false`): name your **own** project instead and
+  enable `biglake.googleapis.com` there. See doc 10 §3.
 - **Header:** `X-Iceberg-Access-Delegation: vended-credentials` — required so the
   catalog vends downscoped GCS credentials; without it the client must reach the
   bucket with its own IAM, defeating the `biglake.viewer`-only consumer model.

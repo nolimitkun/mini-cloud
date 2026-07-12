@@ -76,3 +76,12 @@ variable "iceberg_consumers" {
   default     = []
   description = "Principals granted project-level roles/biglake.viewer (read ALL datasets)."
 }
+
+# PoC default: feeders/consumers charge this project as REST-catalog quota
+# project (serviceusage.serviceUsageConsumer grant). Set false in prod and have
+# callers use their own project as quota project instead.
+variable "grant_quota_project_access" {
+  type        = bool
+  default     = true
+  description = "Grant feeders/consumers serviceusage.serviceUsageConsumer so x-goog-user-project can name this project."
+}

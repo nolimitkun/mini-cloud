@@ -125,6 +125,14 @@ variable "lakehouse_iceberg_consumers" {
   default = []
 }
 
+# PoC: REST-catalog callers charge the lakehouse project as quota project
+# (x-goog-user-project) via a serviceusage.serviceUsageConsumer grant. Set
+# false for the production model (callers use their own quota project).
+variable "lakehouse_grant_quota_access" {
+  type    = bool
+  default = true
+}
+
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
   project_id                = var.project_id
@@ -168,9 +176,10 @@ module "spoke_shared" {
   storage_bucket_name = var.storage_bucket_name
 
   # Lakehouse
-  enable_lakehouse  = var.enable_lakehouse
-  datasets          = var.lakehouse_datasets
-  iceberg_consumers = var.lakehouse_iceberg_consumers
+  enable_lakehouse           = var.enable_lakehouse
+  datasets                   = var.lakehouse_datasets
+  iceberg_consumers          = var.lakehouse_iceberg_consumers
+  grant_quota_project_access = var.lakehouse_grant_quota_access
 }
 
 output "vpn_gateway_ip" { value = module.vpn_poc.vpn_gateway_ip }
