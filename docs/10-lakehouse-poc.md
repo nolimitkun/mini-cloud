@@ -17,7 +17,8 @@ Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) acc
 
 ## 1. Architecture
 
-![Lakehouse architecture: GCS + Iceberg Runtime Catalog](diagrams/gcp-lakehouse-architecture.html)
+[Open the interactive lakehouse architecture diagram](diagrams/gcp-lakehouse-architecture.html).
+The rendered fallback is below:
 
 ```
 ┌──────────────┐     write    ┌─────────────────────────────────┐

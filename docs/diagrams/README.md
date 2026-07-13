@@ -1,7 +1,8 @@
 # Diagrams
 
-Self-contained SVGs (inline styling, no external assets) — render in GitHub markdown in both light
-and dark mode. Each is embedded in the relevant design doc; this is the gallery.
+Mostly self-contained SVGs (inline styling, no external assets) that render in GitHub markdown in
+both light and dark mode. A few richer diagrams are HTML pages; those are linked directly and keep
+a rendered text fallback in their companion doc. This is the gallery.
 
 ### 01 · Tier-1 hub-and-spoke
 On-prem hub ↔ AWS/Azure/GCP spokes over dedicated private circuits. See [01 §3.1](../01-architecture-specification.md).

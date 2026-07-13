@@ -21,8 +21,8 @@ variable "subnet_cidr" {
 
 variable "crosscloud_cidr" {
   type        = string
-  default     = "172.19.16.0/24" # cross-cloud plane, from GCP 172.19.0.0/16 (doc 02 §1.2)
-  description = "Cross-cloud-plane subnet (resources reachable cross-cloud)."
+  default     = "192.168.50.0/24" # PoC choice (non-overlapping home-style); prod plan uses 172.19.x
+  description = "Cross-cloud-plane subnet for the PoC (resources reachable cross-cloud)."
 }
 
 variable "advertised_extra_ranges" {

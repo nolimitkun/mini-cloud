@@ -96,14 +96,14 @@ a static IP (ISP Pro offer) or a DDNS-triggered cron calling `refresh-ip.sh`.
 
 ```bash
 cd infra/stacks/gcp-poc
-cp terraform.tfvars.example terraform.tfvars   # fill project_id, onprem_public_ip, lan_cidr, shared_secret
+cp terraform.tfvars.example terraform.tfvars   # fill project_id, onprem_public_ip, onprem_lan_cidr, shared_secret
 terraform init
 terraform apply
 terraform output                                # note: vpn_gateway_ip, bgp_gcp_ip, test_vm_internal_ip
 ```
 
-This creates the VPC + subnet, HA VPN gateway, external peer gateway (your on-prem IP), Cloud Router
-with the BGP peer, the tunnel, firewall rules (LAN CIDR + IAP), and a no-external-IP test VM.
+This creates the VPC + private and cross-cloud subnets, HA VPN gateway, external peer gateway (your on-prem IP), Cloud Router
+with the BGP peer, the tunnel, and firewall rules (LAN CIDR + IAP). Test VMs are optional and disabled by default.
 
 ### 5.2 On-prem side (strongSwan + FRR)
 
