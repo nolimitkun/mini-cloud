@@ -150,8 +150,8 @@ resource "google_compute_instance" "test" {
   }
 }
 
-# --- Optional second test VM in the cross-cloud subnet (172.19.16.0/24) ---
-# Lets you ping a 172.x address from on-prem to prove the cross-cloud plane
+# --- Optional second test VM in the cross-cloud subnet (192.168.50.0/24) ---
+# Lets you ping a cross-cloud-plane address from on-prem to prove the cross-cloud plane
 # independently. Off by default to keep the base PoC minimal (one VM).
 resource "google_compute_instance" "test_xcloud" {
   count        = var.enable_crosscloud_test_vm ? 1 : 0

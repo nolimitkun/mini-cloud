@@ -7,6 +7,6 @@ shared_secret    = "CHANGE-ME-long-random-psk" # TODO: also set in strongSwan se
 
 # region = "europe-west1"  # default
 
-# Optional: also deploy a test VM in the cross-cloud subnet (172.19.16.0/24)
-# to ping a 172.x address from on-prem and prove the cross-cloud plane.
+# Optional: also deploy a test VM in the cross-cloud subnet (192.168.50.0/24)
+# to ping a cross-cloud-plane address from on-prem and prove the cross-cloud plane.
 # enable_crosscloud_test_vm = true
