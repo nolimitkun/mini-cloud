@@ -9,7 +9,13 @@ terraform {
     # >= 7.20 for the native Iceberg REST catalog resources:
     # google_biglake_iceberg_catalog (v7.15.0), google_biglake_iceberg_namespace
     # + its IAM resources (v7.20.0).
-    google = { source = "hashicorp/google", version = ">= 7.20.0, < 8.0" }
+    # google.biglake: same provider with user_project_override, for the
+    # namespace + namespace-IAM calls that require a quota project.
+    google = {
+      source                = "hashicorp/google"
+      version               = ">= 7.20.0, < 8.0"
+      configuration_aliases = [google.biglake]
+    }
   }
 }
 
@@ -178,11 +184,17 @@ resource "google_storage_managed_folder_iam_member" "iceberg_catalog_writer" {
 # One Iceberg namespace per dataset, alongside its managed folder. The seeder
 # creates namespaces if missing, so Terraform owning them is compatible; it
 # also lets per-namespace IAM below exist before any table is seeded.
+#
+# depends_on the folders so destroy runs namespace-first: dropping a non-empty
+# namespace fails, which then blocks the folder's force_destroy from wiping the
+# table data underneath a still-registered namespace.
 resource "google_biglake_iceberg_namespace" "dataset" {
+  provider     = google.biglake
   for_each     = var.enable_lakehouse ? var.datasets : {}
   project      = local.project_id
   catalog      = google_biglake_iceberg_catalog.runtime[0].name
   namespace_id = each.key
+  depends_on   = [google_storage_managed_folder.dataset]
 }
 
 # ============================================================================
@@ -215,6 +227,7 @@ locals {
 }
 
 resource "google_biglake_iceberg_namespace_iam_member" "dataset_consumer" {
+  provider     = google.biglake
   for_each     = local.dataset_consumers
   project      = local.project_id
   catalog      = google_biglake_iceberg_catalog.runtime[0].name
@@ -233,6 +246,7 @@ resource "google_biglake_iceberg_namespace_iam_member" "dataset_consumer" {
 # The direct-GCS objectAdmin folder grant above covers engines that write
 # files with their own identity instead.
 resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
+  provider     = google.biglake
   for_each     = local.dataset_feeders
   project      = local.project_id
   catalog      = google_biglake_iceberg_catalog.runtime[0].name

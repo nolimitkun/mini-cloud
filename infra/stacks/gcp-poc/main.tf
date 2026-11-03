@@ -11,8 +11,16 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
-  # BigLake IAM calls require a quota project; charge each resource's own
-  # project instead of relying on the local ADC quota-project setting.
+}
+
+# BigLake namespace/IAM calls require a quota project; charge each resource's
+# own project instead of relying on the local ADC quota-project setting.
+# Scoped to an alias: stack-wide, it would also bill freshly created projects
+# for their own service-enablement calls before the caller can use them.
+provider "google" {
+  alias                 = "biglake"
+  project               = var.project_id
+  region                = var.region
   user_project_override = true
 }
 
@@ -180,6 +188,12 @@ module "spoke_shared" {
   host_project_id     = var.project_id
   host_network_name   = module.vpn_poc.network_name
   storage_bucket_name = var.storage_bucket_name
+
+  # Namespace + namespace-IAM resources use the user_project_override alias.
+  providers = {
+    google         = google
+    google.biglake = google.biglake
+  }
 
   # Lakehouse
   enable_lakehouse           = var.enable_lakehouse

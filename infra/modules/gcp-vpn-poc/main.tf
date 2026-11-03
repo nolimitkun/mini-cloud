@@ -15,6 +15,27 @@ resource "google_compute_network" "poc" {
   auto_create_subnetworks = false
 }
 
+# Integer [first, first + size) address span per CIDR, so the subnets below can
+# reject an overlap with the on-prem LAN (BGP would advertise a clashing route).
+locals {
+  cidr_spans = {
+    for k, c in {
+      onprem = var.onprem_lan_cidr
+      hub    = var.subnet_cidr
+      xcloud = var.crosscloud_cidr
+      } : k => {
+      first = sum([for i, o in split(".", cidrhost(c, 0)) : tonumber(o) * pow(256, 3 - i)])
+      size  = pow(2, 32 - tonumber(split("/", c)[1]))
+    }
+  }
+  overlaps_onprem = {
+    for k in ["hub", "xcloud"] : k => (
+      local.cidr_spans[k].first < local.cidr_spans.onprem.first + local.cidr_spans.onprem.size &&
+      local.cidr_spans.onprem.first < local.cidr_spans[k].first + local.cidr_spans[k].size
+    )
+  }
+}
+
 # Private plane (10.x) — intra-cloud / on-prem (doc 02 §1).
 resource "google_compute_subnetwork" "hub" {
   name                     = "subnet-poc-hub"
@@ -23,6 +44,13 @@ resource "google_compute_subnetwork" "hub" {
   network                  = google_compute_network.poc.id
   ip_cidr_range            = var.subnet_cidr
   private_ip_google_access = true
+
+  lifecycle {
+    precondition {
+      condition     = !local.overlaps_onprem.hub
+      error_message = "subnet_cidr (${var.subnet_cidr}) overlaps onprem_lan_cidr (${var.onprem_lan_cidr})."
+    }
+  }
 }
 
 # Cross-cloud plane (172.x) — resources approved for cross-cloud reach (doc 02 §1.2).
@@ -33,6 +61,13 @@ resource "google_compute_subnetwork" "crosscloud" {
   network                  = google_compute_network.poc.id
   ip_cidr_range            = var.crosscloud_cidr
   private_ip_google_access = true
+
+  lifecycle {
+    precondition {
+      condition     = !local.overlaps_onprem.xcloud
+      error_message = "crosscloud_cidr (${var.crosscloud_cidr}) overlaps onprem_lan_cidr (${var.onprem_lan_cidr}); set crosscloud_cidr to a free range."
+    }
+  }
 }
 
 # --- HA VPN gateway (cloud side) ---
