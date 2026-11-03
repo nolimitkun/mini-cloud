@@ -18,7 +18,10 @@ SA="${SA_ID}@${HUB}.iam.gserviceaccount.com"
 
 HUB_NUMBER=$(gcloud projects describe "$HUB" --format='value(projectNumber)')
 
-gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project "$HUB"
+# iamcredentials + sts for the token exchange; cloudresourcemanager because the
+# SA's own project (hub) is the quota project for its project/IAM reads.
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com \
+  cloudresourcemanager.googleapis.com --project "$HUB"
 
 gcloud iam workload-identity-pools describe "$POOL" --location=global --project "$HUB" >/dev/null 2>&1 ||
   gcloud iam workload-identity-pools create "$POOL" --location=global --project "$HUB" \
