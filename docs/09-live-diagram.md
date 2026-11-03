@@ -58,9 +58,11 @@ regenerates the SVG on every change to `infra/**` and commits it back:
 1. pulls the state from GCS, runs Inframap + Graphviz, writes `docs/diagrams/live-gcp-poc.svg`;
 2. commits with `[skip ci]` (the commit touches `docs/`, not `infra/`, so it doesn't re-trigger).
 
-**One-time setup:** add a repo secret **`GOOGLE_CREDENTIALS`** = a service-account key JSON with
-**Storage Object Viewer** on the state bucket (read is enough — the diagram only pulls state). Without
-the secret the job no-ops, so forks/PRs never fail.
+**Auth (no keys):** the job signs in through Workload Identity Federation as `tf-diagram-ci`, which
+only has **Storage Object Viewer** on the state bucket (read is enough — the diagram only pulls
+state). [`infra/ci/setup-plan-identity.sh`](../infra/ci/setup-plan-identity.sh) creates the `github`
+pool and binds the SA to this repository. It runs on pushes to `main` and manual dispatch only, never
+on PRs.
 
 > HCL mode (no creds) was tried and rejected: it returns an empty graph because the stack's resources
 > live in `modules/` and Inframap's HCL parser doesn't expand module sources — hence the state-based job.
