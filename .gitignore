@@ -35,3 +35,7 @@ credentials*.json
 *.swp
 .idea/
 .vscode/
+
+# Python
+__pycache__/
+*.pyc
