@@ -33,8 +33,8 @@ variable "advertised_extra_ranges" {
 
 variable "enable_test_vm" {
   type        = bool
-  default     = true
-  description = "Deploy a test VM in the private subnet. Off => VM-less (test via 169.254.0.1 + BGP)."
+  default     = false
+  description = "Deploy a test VM in the private subnet. Off (default) => VM-less (test via 169.254.0.1 + BGP)."
 }
 
 variable "enable_crosscloud_test_vm" {

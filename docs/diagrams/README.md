@@ -55,5 +55,5 @@ change. See [09](../09-live-diagram.md).
 
 ### 10 · Lakehouse architecture (interactive HTML)
 GCS storage layer + BigLake Iceberg REST runtime catalog, feeder/consumer access model. Interactive
-SVG — open [gcp-lakehouse-architecture.html](gcp-lakehouse-architecture.html) directly. See
-[10](../10-lakehouse-poc.md).
+SVG in [gcp-lakehouse-architecture.html](gcp-lakehouse-architecture.html). GitHub shows HTML as
+source, so open it from a local clone. Text version in [10 §1](../10-lakehouse-poc.md#1-architecture).

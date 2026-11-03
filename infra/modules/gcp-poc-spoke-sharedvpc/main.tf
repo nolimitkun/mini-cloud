@@ -125,17 +125,19 @@ resource "google_storage_managed_folder" "dataset" {
   force_destroy = true
 }
 
-# One (dataset, feeder) pair per grant — shared by the direct-GCS folder grant
-# and the namespace-scoped catalog-write grant below.
+# One (dataset, member) pair per grant, keyed "<dataset>/<member>". Feeders
+# drive the direct-GCS folder grant and the namespace catalog-write grant;
+# consumers drive the namespace read grant.
 locals {
-  dataset_feeders = var.enable_lakehouse ? merge([
-    for ds, cfg in var.datasets : {
-      for feeder in cfg.feeders : "${ds}/${feeder}" => {
-        dataset = ds
-        feeder  = feeder
+  dataset_members = {
+    for kind in ["feeders", "consumers"] : kind => var.enable_lakehouse ? merge([
+      for ds, cfg in var.datasets : {
+        for m in cfg[kind] : "${ds}/${m}" => { dataset = ds, member = m }
       }
-    }
-  ]...) : {}
+    ]...) : {}
+  }
+  dataset_feeders   = local.dataset_members.feeders
+  dataset_consumers = local.dataset_members.consumers
 }
 
 # Feeder IAM — objectAdmin (read + write + delete) on each dataset folder.
@@ -144,7 +146,7 @@ resource "google_storage_managed_folder_iam_member" "feeder" {
   bucket         = google_storage_bucket.data.name
   managed_folder = google_storage_managed_folder.dataset[each.value.dataset].name
   role           = "roles/storage.objectAdmin"
-  member         = "serviceAccount:${each.value.feeder}"
+  member         = "serviceAccount:${each.value.member}"
 }
 
 # ============================================================================
@@ -215,17 +217,6 @@ resource "google_project_iam_member" "iceberg_consumer" {
 # inherits downward (project -> catalog -> namespace -> table), so a grant here
 # covers the namespace's tables and nothing else — credential vending is
 # likewise bounded to those tables.
-locals {
-  dataset_consumers = var.enable_lakehouse ? merge([
-    for ds, cfg in var.datasets : {
-      for member in cfg.consumers : "${ds}/${member}" => {
-        dataset = ds
-        member  = member
-      }
-    }
-  ]...) : {}
-}
-
 resource "google_biglake_iceberg_namespace_iam_member" "dataset_consumer" {
   provider     = google.biglake
   for_each     = local.dataset_consumers
@@ -252,7 +243,7 @@ resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
   catalog      = google_biglake_iceberg_catalog.runtime[0].name
   namespace_id = google_biglake_iceberg_namespace.dataset[each.value.dataset].namespace_id
   role         = "roles/biglake.editor"
-  member       = "serviceAccount:${each.value.feeder}"
+  member       = "serviceAccount:${each.value.member}"
 }
 
 # ============================================================================
@@ -270,7 +261,7 @@ resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
 # there) — per-team quota isolation + cost attribution. See doc 10 §3.
 locals {
   quota_project_users = var.enable_lakehouse && var.grant_quota_project_access ? toset(concat(
-    [for pair in values(local.dataset_feeders) : "serviceAccount:${pair.feeder}"],
+    [for pair in values(local.dataset_feeders) : "serviceAccount:${pair.member}"],
     [for pair in values(local.dataset_consumers) : pair.member],
     var.iceberg_consumers,
   )) : toset([])
