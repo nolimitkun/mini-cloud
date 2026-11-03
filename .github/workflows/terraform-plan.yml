@@ -1,0 +1,137 @@
+name: terraform-plan
+
+# Live `terraform plan` of the GCP PoC stack on every PR that touches infra, so
+# state-dependent changes (provider moves, replacements, dependency changes) are
+# visible before merge — fmt/validate in terraform.yml can't see them.
+#
+# Auth: GitHub OIDC -> Workload Identity Federation -> read-only SA tf-plan-ci
+# (set up by infra/ci/setup-plan-identity.sh). No key files. State is read with
+# -lock=false; nothing is applied.
+#
+# This repo is PUBLIC, so run logs are world-readable. The raw plan (home IP,
+# billing/org ids, resource attributes) never reaches the log: it goes to a file
+# that is deleted, and only resource addresses + actions are posted.
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/terraform-plan.yml"]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: terraform-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan-gcp-poc:
+    # Fork PRs get no OIDC token or secrets; skip instead of failing.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/stacks/gcp-poc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.7"
+          # The wrapper echoes stdout into the log; keep plan output out of it.
+          terraform_wrapper: false
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/311800512343/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: tf-plan-ci@mini-cloud-499820.iam.gserviceaccount.com
+
+      - name: write tfvars (masked)
+        env:
+          TFVARS: ${{ secrets.GCP_POC_TFVARS }}
+        run: |
+          printf '%s\n' "$TFVARS" > "$RUNNER_TEMP/ci.tfvars"
+          # Mask every quoted value too, in case one surfaces in an error.
+          grep -oE '"[^"]+"' "$RUNNER_TEMP/ci.tfvars" | tr -d '"' | while read -r v; do
+            echo "::add-mask::$v"
+          done
+
+      - name: terraform init
+        run: terraform init -input=false -no-color > /dev/null
+
+      - name: terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -lock=false -input=false -no-color -detailed-exitcode \
+            -var-file="$RUNNER_TEMP/ci.tfvars" -out=tfplan > "$RUNNER_TEMP/plan.log" 2>&1
+          code=$?
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = 1 ]; then
+            # Error headlines only (variable values are masked above).
+            grep -E '^(Error|│ Error):' "$RUNNER_TEMP/plan.log" | sed 's/^│ //' | sort -u > "$RUNNER_TEMP/errors.txt"
+          fi
+          rm -f "$RUNNER_TEMP/plan.log"
+          exit 0
+
+      - name: summarize
+        run: |
+          code=${{ steps.plan.outputs.exitcode }}
+          {
+            echo "<!-- terraform-plan:gcp-poc -->"
+            echo "### terraform plan · \`infra/stacks/gcp-poc\`"
+            echo
+            if [ "$code" = 1 ]; then
+              echo "**Plan failed.**"
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/errors.txt"
+              echo '```'
+              echo "Full output is kept out of the public log; reproduce locally."
+            else
+              terraform show -json tfplan | jq -r '
+                [.resource_changes[] | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+                 | {a: (.change.actions | if . == ["delete","create"] or . == ["create","delete"] then "replace" else join(",") end), r: .address}]
+                | if length == 0 then "**No changes.** Live infrastructure matches this branch."
+                  else
+                    ( "| Action | Resource |", "|---|---|",
+                      ( sort_by(.a) | .[] | "| \(if .a == "replace" or .a == "delete" then "⚠️ **\(.a)**" else .a end) | `\(.r)` |" ),
+                      "",
+                      ( group_by(.a) | map("\(.[0].a): \(length)") | join(" · ") ) )
+                  end'
+            fi
+            echo
+            echo "<sub>Commit ${{ github.event.pull_request.head.sha }} · read-only, -lock=false · addresses and actions only</sub>"
+          } > "$RUNNER_TEMP/comment.md"
+          # ::add-mask:: only covers the log, not text sent to the comments API.
+          # Redact tfvars values here too: they can surface in instance keys
+          # (e.g. dataset_consumer["logs/user:a@example.com"]) and error lines.
+          python3 - "$RUNNER_TEMP/ci.tfvars" "$RUNNER_TEMP/comment.md" <<'EOF'
+          import re, sys
+          vals = sorted(set(re.findall(r'"([^"]+)"', open(sys.argv[1]).read())), key=len, reverse=True)
+          text = open(sys.argv[2]).read()
+          for v in vals:
+              text = text.replace(v, "***")
+          open(sys.argv[2], "w").write(text)
+          EOF
+          cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
+          rm -f tfplan
+
+      - name: post PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Update the previous plan comment in place instead of stacking new ones.
+          id=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
+            -q '.[] | select(.body | startswith("<!-- terraform-plan:gcp-poc -->")) | .id' | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" > /dev/null
+          else
+            gh pr comment "$PR" --repo "${{ github.repository }}" --body-file "$RUNNER_TEMP/comment.md"
+          fi
+
+      - name: fail on plan error
+        if: steps.plan.outputs.exitcode == '1'
+        run: exit 1
