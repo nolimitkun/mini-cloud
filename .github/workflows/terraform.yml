@@ -1,8 +1,8 @@
 name: terraform
 
 # Offline checks (fmt + validate) on every push/PR. No cloud credentials required:
-# validate uses `init -backend=false`. `plan` is intentionally NOT run here — it needs
-# per-cloud credentials and remote state; run it from an environment that has them.
+# validate uses `init -backend=false`. `plan` is NOT run here — it needs cloud
+# credentials and remote state; terraform-plan.yml plans the GCP PoC stack on PRs.
 
 on:
   push:
