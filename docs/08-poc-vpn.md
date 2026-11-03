@@ -77,16 +77,19 @@ GCP matches the peer by source IP), so the IP must be stable while the tunnel is
 (Orange Livebox, etc.) hand out **dynamic** IPs that change on router reboot / line resync.
 
 If it changes, the tunnel drops (GCP shows `NO_INCOMING_PACKETS`, BGP `DOWN`). Re-point both sides
-with one command — [`refresh-ip.sh`](../infra/onprem/refresh-ip.sh) detects the new IP, runs
-`terraform apply` to update the GCP gateway, and updates + restarts strongSwan:
+with one command — [`refresh-ip.sh`](../infra/onprem/refresh-ip.sh) detects the new IP, shows the
+Terraform plan (the external gateway and tunnel are replaced) and asks before applying, syncs the
+`GCP_POC_TFVARS` secret used by the CI plan job, then updates + restarts strongSwan and recreates
+`ipsec0` if it's missing:
 
 ```bash
-bash infra/onprem/refresh-ip.sh        # run as your normal user (sudo used internally)
+bash infra/onprem/refresh-ip.sh        # run as your normal user (sudo used internally); --yes skips the prompt
 ```
 
-`setup.sh` also guards against this: it refuses to run if the current public IP no longer matches the
-one GCP was deployed with, and tells you to run `refresh-ip.sh` first. For anything beyond a PoC, use
-a static IP (ISP Pro offer) or a DDNS-triggered cron calling `refresh-ip.sh`.
+A reboot drops the tunnel too: nothing reloads `swanctl.conf` or recreates `ipsec0`. Install the boot
+unit once with `sudo infra/onprem/install-boot-unit.sh` (see [infra/onprem](../infra/onprem/README.md)).
+For anything beyond a PoC, use a static IP (ISP Pro offer) or a DDNS-triggered job calling
+`refresh-ip.sh --yes`.
 
 ---
 
@@ -118,7 +121,7 @@ sudo cp infra/onprem/strongswan/swanctl.conf /etc/swanctl/swanctl.conf
 sudo swanctl --load-all
 
 # 2. Routed IPsec interface (XFRM if_id 42) + BGP link-local IP
-sudo infra/onprem/strongswan/ipsec-xfrm.sh         # creates ipsec0, adds 169.254.0.2/30
+sudo infra/onprem/strongswan/ipsec-xfrm.sh         # creates ipsec0 on the default-route NIC, adds 169.254.0.2/30
 
 # 3. BGP — edit neighbor/network in infra/onprem/frr/bgpd.conf, then:
 sudo cp infra/onprem/frr/bgpd.conf /etc/frr/bgpd.conf
