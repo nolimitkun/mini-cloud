@@ -58,5 +58,12 @@ gcloud iam service-accounts add-iam-policy-binding "$SA" --project "$HUB" \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/${HUB_NUMBER}/locations/global/workloadIdentityPools/${POOL}/attribute.repository/${REPO}" >/dev/null
 
+# The live-diagram job (.github/workflows/diagram.yml) uses the same pool with
+# its own SA, which only reads state (objectViewer on the state bucket).
+DIAGRAM_SA="tf-diagram-ci@${HUB}.iam.gserviceaccount.com"
+gcloud iam service-accounts add-iam-policy-binding "$DIAGRAM_SA" --project "$HUB" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/${HUB_NUMBER}/locations/global/workloadIdentityPools/${POOL}/attribute.repository/${REPO}" >/dev/null
+
 echo "workload_identity_provider: projects/${HUB_NUMBER}/locations/global/workloadIdentityPools/${POOL}/providers/${PROVIDER}"
-echo "service_account:            ${SA}"
+echo "service_accounts:           ${SA} (plan), ${DIAGRAM_SA} (diagram)"
