@@ -104,6 +104,17 @@ jobs:
             echo
             echo "<sub>Commit ${{ github.event.pull_request.head.sha }} · read-only, -lock=false · addresses and actions only</sub>"
           } > "$RUNNER_TEMP/comment.md"
+          # ::add-mask:: only covers the log, not text sent to the comments API.
+          # Redact tfvars values here too: they can surface in instance keys
+          # (e.g. dataset_consumer["logs/user:a@example.com"]) and error lines.
+          python3 - "$RUNNER_TEMP/ci.tfvars" "$RUNNER_TEMP/comment.md" <<'EOF'
+          import re, sys
+          vals = sorted(set(re.findall(r'"([^"]+)"', open(sys.argv[1]).read())), key=len, reverse=True)
+          text = open(sys.argv[2]).read()
+          for v in vals:
+              text = text.replace(v, "***")
+          open(sys.argv[2], "w").write(text)
+          EOF
           cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
           rm -f tfplan
 
