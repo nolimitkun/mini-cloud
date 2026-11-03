@@ -28,7 +28,9 @@ import random
 import subprocess
 import sys
 
+import gcsfs
 import pyarrow as pa
+from google.oauth2.credentials import Credentials
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
@@ -144,16 +146,19 @@ def main() -> None:
     # in table responses, so FileIO reads/writes work with only roles/biglake.viewer
     # (no direct GCS IAM). Without it, PyIceberg falls back to the caller's own
     # credentials, which only works for identities that can reach the bucket directly.
+    token = gcloud_token()
     catalog = RestCatalog(
         "lakehouse",
         uri=REST_URI,
         warehouse=f"gs://{args.bucket}",
-        token=gcloud_token(),
+        token=token,
         **{
             "header.x-goog-user-project": args.project,
             "header.X-Iceberg-Access-Delegation": "vended-credentials",
         },
     )
+    # Same gcloud identity, for clearing a dropped table's files on --recreate.
+    fs = gcsfs.GCSFileSystem(project=args.project, token=Credentials(token))
 
     for identifier, schema, rows in build_datasets():
         namespace = identifier.split(".")[0]
@@ -162,7 +167,13 @@ def main() -> None:
 
         exists = catalog.table_exists(identifier)
         if exists and args.recreate:
+            # drop_table only unregisters the table (BigLake keeps files even
+            # with purge), and the rebuild gets a fresh location — so clear the
+            # old data/metadata files or every --recreate leaves orphans behind.
+            location = catalog.load_table(identifier).metadata.location
             catalog.drop_table(identifier)
+            if fs.exists(location):
+                fs.rm(location, recursive=True)
             exists = False
         elif exists:
             table = catalog.load_table(identifier)

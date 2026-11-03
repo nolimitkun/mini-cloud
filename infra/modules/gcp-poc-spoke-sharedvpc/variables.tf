@@ -64,6 +64,21 @@ variable "datasets" {
   }))
   default     = {}
   description = "Datasets: managed folder + Iceberg namespace each. Key = dataset name, value = { description, feeders, consumers }."
+
+  # feeders are bare SA emails (the module adds "serviceAccount:"); consumers
+  # are full IAM members. Catch the two being mixed up at plan time.
+  validation {
+    condition = alltrue(flatten([
+      for cfg in values(var.datasets) : [for f in cfg.feeders : can(regex("^[^:@\\s]+@[^:@\\s]+$", f))]
+    ]))
+    error_message = "datasets[*].feeders must be bare service-account emails (sa@proj.iam.gserviceaccount.com), without a \"serviceAccount:\" prefix."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for cfg in values(var.datasets) : [for m in cfg.consumers : can(regex("^(user|group|serviceAccount|domain|principal|principalSet):\\S+$", m))]
+    ]))
+    error_message = "datasets[*].consumers must be IAM members with a type prefix, e.g. \"user:a@example.com\" or \"group:analysts@example.com\"."
+  }
 }
 
 # Open-engine consumers (Spark/Trino/Flink/PyIceberg) granted read access to
@@ -75,6 +90,11 @@ variable "iceberg_consumers" {
   type        = list(string)
   default     = []
   description = "Principals granted project-level roles/biglake.viewer (read ALL datasets)."
+
+  validation {
+    condition     = alltrue([for m in var.iceberg_consumers : can(regex("^(user|group|serviceAccount|domain|principal|principalSet):\\S+$", m))])
+    error_message = "iceberg_consumers must be IAM members with a type prefix, e.g. \"user:a@example.com\"."
+  }
 }
 
 # PoC default: feeders/consumers charge this project as REST-catalog quota

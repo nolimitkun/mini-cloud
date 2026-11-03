@@ -17,32 +17,34 @@ Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) acc
 
 ## 1. Architecture
 
-[Open the interactive lakehouse architecture diagram](diagrams/gcp-lakehouse-architecture.html).
-The rendered fallback is below:
+The diagram below is the text version. An interactive HTML version lives in
+[diagrams/gcp-lakehouse-architecture.html](diagrams/gcp-lakehouse-architecture.html); GitHub shows
+HTML as source, so clone the repo and open that file in a browser.
 
 ```
-┌──────────────┐     write    ┌─────────────────────────────────┐
-│ Feeder Proj  │─────────────▶│  GCS Storage Layer              │
-│ (hub)        │ objectAdmin  │  mini-cloud-lakehouse-data      │
-│              │              │  ├── sales/   (managed folder)  │
-└──────────────┘              │  ├── users/   (managed folder)  │
-                              │  └── logs/    (managed folder)  │
-                              │  Iceberg table format (Parquet)  │
-                              └────┬────────────────────────────┘
-                                   │ Iceberg metadata sync
-                                   ▼
-                          Lakehouse Runtime Catalog
-                          (BigLake Iceberg REST Catalog)
-                          table snapshots · manifests · schema
-                          credential mode: VENDED_CREDENTIALS
-                           │                    │
-                    Iceberg REST API    vended GCS token
-                           │                    │
-                          ┌▼────────────────────▼┐
-                          │ Consumer: Open Engine │
-                          │ Spark/Trino/Flink/Py  │
-                          │ roles/biglake.viewer  │
-                          └───────────────────────┘
+ Feeders (per dataset)                 GCS bucket: mini-cloud-lakehouse-data
+ lakehouse_datasets[*].feeders        ┌─────────────────────────────────────────────┐
+┌─────────────────────────┐ objectAdmin│ sales/  managed folder + Iceberg namespace │
+│ feeder SA (own project) │───────────▶│ users/  managed folder + Iceberg namespace │
+│  direct GCS writes      │ folder only│ logs/   managed folder + Iceberg namespace │
+│  or catalog commits     │            │ Iceberg tables (Parquet + metadata)        │
+└───────────┬─────────────┘            └──────────────────────▲─────────────────────┘
+            │ biglake.editor                                  │ objectUser per folder
+            │ on its namespaces                               │ (catalog vending SA)
+            ▼                                                 │
+   Lakehouse Runtime Catalog (BigLake Iceberg REST) ──────────┘
+   one namespace per dataset · credential mode: VENDED_CREDENTIALS
+   vended GCS tokens are bounded to the tables the caller can see
+            ▲
+            │ Iceberg REST API + vended read token
+┌───────────┴───────────────────────────────────────┐
+│ Consumers: Spark / Trino / Flink / PyIceberg      │
+│  per dataset:  biglake.viewer on that namespace   │
+│                (lakehouse_datasets[*].consumers)  │
+│  all datasets: project-level biglake.viewer       │
+│                (lakehouse_iceberg_consumers)      │
+│  no direct GCS IAM                                │
+└───────────────────────────────────────────────────┘
 ```
 
 ### One catalog layer
