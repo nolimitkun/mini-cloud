@@ -8,7 +8,11 @@
 
 terraform {
   required_providers {
-    google = { source = "hashicorp/google", version = ">= 5.0, < 8.0" }
+    google = {
+      source                = "hashicorp/google"
+      version               = ">= 5.0, < 8.0"
+      configuration_aliases = [google.hub_quota]
+    }
   }
 }
 
@@ -33,8 +37,9 @@ resource "google_project_service" "token_exchange" {
 # the org's list and adds `eu` for the hub only, so audio stays in the EU and
 # every other project keeps the region lock.
 resource "google_org_policy_policy" "allow_eu" {
-  name   = "projects/${var.project_id}/policies/gcp.resourceLocations"
-  parent = "projects/${var.project_id}"
+  provider = google.hub_quota
+  name     = "projects/${var.project_id}/policies/gcp.resourceLocations"
+  parent   = "projects/${var.project_id}"
   spec {
     inherit_from_parent = true
     rules {
