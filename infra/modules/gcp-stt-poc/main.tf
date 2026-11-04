@@ -18,9 +18,11 @@ resource "google_project_service" "speech" {
   disable_on_destroy = false
 }
 
-# STS + IAM Credentials carry the token exchange and SA impersonation.
+# STS + IAM Credentials carry the token exchange and SA impersonation. IAM is
+# for the pool and SA themselves: callers that bill this project (the CI plan
+# job's SA) cannot even read them without it.
 resource "google_project_service" "token_exchange" {
-  for_each           = toset(["sts.googleapis.com", "iamcredentials.googleapis.com"])
+  for_each           = toset(["sts.googleapis.com", "iamcredentials.googleapis.com", "iam.googleapis.com"])
   project            = var.project_id
   service            = each.value
   disable_on_destroy = false
