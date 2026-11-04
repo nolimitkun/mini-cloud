@@ -147,6 +147,28 @@ variable "lakehouse_grant_quota_access" {
   default = true
 }
 
+# --- Speech-to-Text for on-prem (LiteLLM chirp-3 model, doc 11) ---
+
+variable "enable_stt" {
+  type    = bool
+  default = true
+}
+
+# PSC endpoint for Google APIs, from the GCP private-endpoint block (doc 02 §1.3).
+variable "psc_googleapis_ip" {
+  type    = string
+  default = "10.48.64.2"
+}
+
+module "stt" {
+  count      = var.enable_stt ? 1 : 0
+  source     = "../../modules/gcp-stt-poc"
+  project_id = var.project_id
+  # Public signing keys of the on-prem cluster; refresh with
+  # infra/onprem/refresh-k8s-jwks.sh after recreating it.
+  k8s_jwks = file("${path.module}/onprem-k8s-jwks.json")
+}
+
 module "vpn_poc" {
   source                    = "../../modules/gcp-vpn-poc"
   project_id                = var.project_id
@@ -160,6 +182,7 @@ module "vpn_poc" {
   # Peering spoke needs the Cloud Router to advertise its subnet; Shared VPC
   # spoke lives in the hub VPC so DEFAULT advertisement already covers it.
   advertised_extra_ranges = (var.enable_spoke && var.spoke_mode == "peering") ? [var.spoke_cidr] : []
+  psc_googleapis_ip       = var.enable_stt ? var.psc_googleapis_ip : null
 }
 
 # Spoke A — VPC peering (works without an org)
@@ -240,3 +263,9 @@ output "iceberg_catalog_id" {
 output "iceberg_catalog_sa" {
   value = try(module.spoke_shared[0].iceberg_catalog_sa, null)
 }
+
+# --- Speech-to-Text outputs ---
+
+output "psc_googleapis_ip" { value = module.vpn_poc.psc_googleapis_ip }
+output "stt_service_account" { value = try(module.stt[0].service_account_email, null) }
+output "stt_credential_config" { value = try(module.stt[0].credential_config, null) }

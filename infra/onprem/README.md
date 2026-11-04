@@ -20,7 +20,7 @@ onprem/
 
 ```bash
 # 0. Deploy the cloud side first (infra/stacks/gcp-poc), grab `terraform output`.
-sudo apt-get install -y strongswan strongswan-swanctl frr   # Debian/Ubuntu
+sudo apt-get install -y strongswan strongswan-swanctl frr nftables   # Debian/Ubuntu
 
 # 1. IPsec
 sudo cp strongswan/swanctl.conf /etc/swanctl/swanctl.conf   # edit <PLACEHOLDERS> first
@@ -51,6 +51,9 @@ Two things break the tunnel without any config change:
   `bash refresh-ip.sh` as your normal user: it shows the plan (the external gateway and tunnel are
   replaced) and asks before applying, syncs the `GCP_POC_TFVARS` secret for the CI plan job,
   updates the strongSwan local id, and recreates `ipsec0` if it's missing.
+- **Recreated Kubernetes cluster** (`minikube delete`, `deploy-minikube.sh --reset`). New
+  service-account signing keys mean GCP rejects LiteLLM's token for the chirp-3 model. Run
+  `bash refresh-k8s-jwks.sh` and commit `onprem-k8s-jwks.json` (doc 11).
 
 ## Verify
 
@@ -65,6 +68,11 @@ ping <test_vm_internal_ip>              # data plane over the tunnel
 
 - **Behind NAT:** forward UDP 500 + 4500 to this host; use the public/NAT IP as `local id` and as
   `onprem_public_ip` in the cloud tfvars. NAT-T is automatic.
+- **Source address:** routes learned over BGP point at `ipsec0`, whose own address is the
+  link-local `169.254.0.2`, and GCP can't route replies to it. `ipsec-xfrm.sh` adds an nftables
+  rule (table `mini_cloud_vpn`) that rewrites that source to this host's LAN address, which BGP
+  does advertise. BGP itself keeps the link-local address. Set `LAN_IP` to override the address.
+  Hosts set up before this rule need `sudo apt-get install -y nftables` once.
 - **Reach from other LAN hosts:** either add a route for `10.48.0.0/24` via this host on the LAN
   gateway, or test directly from this host.
 - These files contain `<PLACEHOLDERS>` and a sample PSK — never commit a real pre-shared key.
