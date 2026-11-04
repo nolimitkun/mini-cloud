@@ -28,6 +28,21 @@ resource "google_project_service" "token_exchange" {
   disable_on_destroy = false
 }
 
+# The org restricts locations to europe-west1 (infra/policy/gcp), but Chirp 3
+# only runs in the `us` and `eu` multi-regions. This project-level policy keeps
+# the org's list and adds `eu` for the hub only, so audio stays in the EU and
+# every other project keeps the region lock.
+resource "google_org_policy_policy" "allow_eu" {
+  name   = "projects/${var.project_id}/policies/gcp.resourceLocations"
+  parent = "projects/${var.project_id}"
+  spec {
+    inherit_from_parent = true
+    rules {
+      values { allowed_values = ["eu"] }
+    }
+  }
+}
+
 resource "google_service_account" "stt" {
   project      = var.project_id
   account_id   = var.service_account_id
