@@ -21,6 +21,7 @@ ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -S /run/charon.vici ] && exi
 ExecStartPre=/usr/sbin/swanctl --load-all
 ExecStart=/usr/local/sbin/mini-cloud-ipsec-xfrm.sh
 ExecStop=/sbin/ip link del ipsec0
+ExecStop=-/usr/sbin/nft delete table ip mini_cloud_vpn
 
 [Install]
 WantedBy=multi-user.target

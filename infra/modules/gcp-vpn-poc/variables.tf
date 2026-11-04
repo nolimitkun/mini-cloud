@@ -79,3 +79,9 @@ variable "bgp_onprem_ip" {
   type    = string
   default = "169.254.0.2"
 }
+
+variable "psc_googleapis_ip" {
+  type        = string
+  default     = null
+  description = "Internal IP for a Private Service Connect endpoint to Google APIs (all-apis bundle), advertised to on-prem as a /32. Must sit outside every subnet; null skips it."
+}

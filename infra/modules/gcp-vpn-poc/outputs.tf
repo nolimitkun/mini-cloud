@@ -50,3 +50,8 @@ output "network_name" {
 output "vpn_tunnel_name" {
   value = google_compute_vpn_tunnel.t0.name
 }
+
+output "psc_googleapis_ip" {
+  description = "Private Service Connect endpoint for Google APIs (null when disabled)."
+  value       = try(google_compute_global_address.psc_googleapis[0].address, null)
+}

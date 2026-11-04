@@ -98,14 +98,46 @@ resource "google_compute_router" "cr" {
   bgp {
     asn = var.cloud_router_asn
     # DEFAULT advertises the VPC's own subnets (private + cross-cloud).
-    # When peered spokes exist, switch to CUSTOM to also advertise their ranges.
-    advertise_mode    = length(var.advertised_extra_ranges) > 0 ? "CUSTOM" : "DEFAULT"
-    advertised_groups = length(var.advertised_extra_ranges) > 0 ? ["ALL_SUBNETS"] : []
+    # When peered spokes or the PSC endpoint exist, switch to CUSTOM to also
+    # advertise their ranges.
+    advertise_mode    = length(local.advertised_ranges) > 0 ? "CUSTOM" : "DEFAULT"
+    advertised_groups = length(local.advertised_ranges) > 0 ? ["ALL_SUBNETS"] : []
     dynamic "advertised_ip_ranges" {
-      for_each = var.advertised_extra_ranges
+      for_each = local.advertised_ranges
       content { range = advertised_ip_ranges.value }
     }
   }
+}
+
+# --- Private Service Connect endpoint for Google APIs ---
+# On-prem reaches *.googleapis.com over the tunnel instead of the internet: the
+# Cloud Router advertises this /32 and on-prem DNS points the API hostnames at
+# it. Private Google Access does not cover hybrid clients; this endpoint does.
+resource "google_compute_global_address" "psc_googleapis" {
+  count        = var.psc_googleapis_ip == null ? 0 : 1
+  name         = "psc-googleapis"
+  project      = var.project_id
+  purpose      = "PRIVATE_SERVICE_CONNECT"
+  address_type = "INTERNAL"
+  address      = var.psc_googleapis_ip
+  network      = google_compute_network.poc.id
+}
+
+resource "google_compute_global_forwarding_rule" "psc_googleapis" {
+  count                 = var.psc_googleapis_ip == null ? 0 : 1
+  name                  = "pscgoogleapis" # letters and digits only, max 20
+  project               = var.project_id
+  target                = "all-apis"
+  network               = google_compute_network.poc.id
+  ip_address            = google_compute_global_address.psc_googleapis[0].id
+  load_balancing_scheme = ""
+}
+
+locals {
+  advertised_ranges = concat(
+    var.advertised_extra_ranges,
+    var.psc_googleapis_ip == null ? [] : ["${var.psc_googleapis_ip}/32"],
+  )
 }
 
 # --- Tunnel (IKEv2, PSK), interface 0 of the HA gateway ---
