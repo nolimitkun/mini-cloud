@@ -21,6 +21,7 @@ client (Open WebUI, kagent, curl …) with a LiteLLM key
 | `gcp-vpn-poc` | `google_compute_global_address` + `google_compute_global_forwarding_rule` (`all-apis`) at **10.48.64.2** | A private IP for every `*.googleapis.com` API inside the hub VPC. Private Google Access only serves VMs; hybrid clients need this endpoint. The IP comes from the GCP private-endpoint block (doc 02 §1.3). |
 | `gcp-vpn-poc` | Cloud Router advertises `10.48.64.2/32` (mode becomes `CUSTOM` + `ALL_SUBNETS`) | So FRR on-prem learns a route to it over `ipsec0`. |
 | `gcp-stt-poc` | `speech`, `sts`, `iamcredentials` APIs; SA `litellm-stt` with `speech.client` + `serviceUsageConsumer` | The SA can only transcribe. LiteLLM bills the hub project (`x-goog-user-project`), hence the second role. |
+| `gcp-stt-poc` | Project-level `gcp.resourceLocations` policy: inherit the org's list, add `eu` | The org allows only `europe-west1`, where Chirp 3 doesn't run. The exception covers the hub only; without it Google answers `FAILED_PRECONDITION … violates constraint`. |
 | `gcp-stt-poc` | Workload identity pool `onprem-k8s`, OIDC provider `minikube` | Trusts the cluster's service-account tokens. Its issuer (`https://kubernetes.default.svc.cluster.local`) isn't reachable from Google, so the public keys are uploaded (`onprem-k8s-jwks.json`). The attribute condition accepts only `system:serviceaccount:mini-platform:litellm`. |
 | `gcp-stt-poc` | `roles/iam.workloadIdentityUser` on `litellm-stt` for that one subject | Lets the LiteLLM pod impersonate the SA. |
 | on-prem host | nftables source rewrite in `ipsec-xfrm.sh` | Without it, traffic into the tunnel leaves as `169.254.0.2`, which GCP can't reply to. |
@@ -77,8 +78,9 @@ curl -s localhost:4000/v1/audio/transcriptions -H "Authorization: Bearer $KEY" \
 
 - **One minute, 10 MB per request.** LiteLLM uses the synchronous `recognize` method. Longer audio
   has to be split into clips; Chirp 3's `BatchRecognize` is not wired up.
-- **Locations.** Chirp 3 is GA only in `us` and `eu`; `eu` keeps the audio in Europe. Another
-  location needs its hostname (`us-speech.googleapis.com`) added to `gcp-psc-dns.sh`.
+- **Locations.** Chirp 3 is GA only in `us` and `eu`; `eu` keeps the audio in Europe, and the
+  hub's location exception allows only that. Another location needs both the exception widened and
+  its hostname (`us-speech.googleapis.com`) added to `gcp-psc-dns.sh`.
 - **Recreated cluster.** New signing keys: run `infra/onprem/refresh-k8s-jwks.sh` and commit the
   JSON, or every token exchange fails with `invalid_grant`.
 - **Tunnel down = no STT.** Cluster DNS sends the three API names only to the PSC IP. Run

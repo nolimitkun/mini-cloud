@@ -8,7 +8,11 @@
 
 terraform {
   required_providers {
-    google = { source = "hashicorp/google", version = ">= 5.0, < 8.0" }
+    google = {
+      source                = "hashicorp/google"
+      version               = ">= 5.0, < 8.0"
+      configuration_aliases = [google.hub_quota]
+    }
   }
 }
 
@@ -26,6 +30,22 @@ resource "google_project_service" "token_exchange" {
   project            = var.project_id
   service            = each.value
   disable_on_destroy = false
+}
+
+# The org restricts locations to europe-west1 (infra/policy/gcp), but Chirp 3
+# only runs in the `us` and `eu` multi-regions. This project-level policy keeps
+# the org's list and adds `eu` for the hub only, so audio stays in the EU and
+# every other project keeps the region lock.
+resource "google_org_policy_policy" "allow_eu" {
+  provider = google.hub_quota
+  name     = "projects/${var.project_id}/policies/gcp.resourceLocations"
+  parent   = "projects/${var.project_id}"
+  spec {
+    inherit_from_parent = true
+    rules {
+      values { allowed_values = ["eu"] }
+    }
+  }
 }
 
 resource "google_service_account" "stt" {

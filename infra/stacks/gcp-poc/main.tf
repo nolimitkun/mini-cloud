@@ -24,6 +24,16 @@ provider "google" {
   user_project_override = true
 }
 
+# Org-policy calls need a quota project, and a policy has no project of its own
+# to bill: send the hub explicitly, so the apply works with plain user ADC.
+provider "google" {
+  alias                 = "hub_quota"
+  project               = var.project_id
+  region                = var.region
+  billing_project       = var.project_id
+  user_project_override = true
+}
+
 variable "project_id" { type = string }
 variable "region" {
   type    = string
@@ -164,6 +174,10 @@ module "stt" {
   count      = var.enable_stt ? 1 : 0
   source     = "../../modules/gcp-stt-poc"
   project_id = var.project_id
+  providers = {
+    google           = google
+    google.hub_quota = google.hub_quota
+  }
   # Public signing keys of the on-prem cluster; refresh with
   # infra/onprem/refresh-k8s-jwks.sh after recreating it.
   k8s_jwks = file("${path.module}/onprem-k8s-jwks.json")
