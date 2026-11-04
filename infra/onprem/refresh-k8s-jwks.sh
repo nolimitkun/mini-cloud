@@ -17,23 +17,30 @@ TF=$(command -v terraform || echo "$HOME/.local/bin/terraform")
 YES=false; [ "${1:-}" = "--yes" ] && YES=true
 
 NEW=$(kubectl get --raw /openid/v1/jwks | python3 -m json.tool)
+# The file only ever holds keys that were applied: any exit before a successful
+# apply (plan error, declined prompt, failed apply) restores the previous copy,
+# so a re-run sees the change again instead of reporting "unchanged".
 if [ "$NEW" = "$(cat "$JWKS" 2>/dev/null)" ]; then
   echo "cluster keys unchanged — nothing to do."
   exit 0
 fi
+PLAN=$(mktemp)
+APPLIED=false
+cp "$JWKS" "$JWKS.bak"
+trap 'rm -f "$PLAN"; if ! $APPLIED && [ -f "$JWKS.bak" ]; then mv "$JWKS.bak" "$JWKS"; echo "keys file restored."; fi' EXIT
 printf '%s\n' "$NEW" > "$JWKS"
 echo "cluster keys changed; wrote $JWKS"
 
-PLAN=$(mktemp)
-trap 'rm -f "$PLAN"' EXIT
 "$TF" -chdir="$STACK" plan -input=false -out="$PLAN" > /dev/null
 "$TF" -chdir="$STACK" show -no-color "$PLAN" | grep -E '^  # ' || echo "  (no changes)"
 if ! $YES; then
   read -r -p "apply this plan? [y/N] " ok
   if [ "$ok" != y ] && [ "$ok" != Y ]; then
-    echo "aborted — nothing applied (the JSON is updated; revert it with git if needed)."
+    echo "aborted — nothing applied."
     exit 1
   fi
 fi
 "$TF" -chdir="$STACK" apply -input=false "$PLAN"
+APPLIED=true
+rm -f "$JWKS.bak"
 echo "done. commit $JWKS so CI plans with the same keys."

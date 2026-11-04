@@ -48,6 +48,7 @@ The credential config holds no secret, which is why it can live in Git.
 terraform plan && terraform apply
 
 # 2. On-prem host: rebuild ipsec0 with the source rewrite, then restart FRR
+sudo apt-get install -y nftables              # if not already installed
 sudo install -m 0755 infra/onprem/strongswan/ipsec-xfrm.sh /usr/local/sbin/mini-cloud-ipsec-xfrm.sh
 sudo install -m 0644 infra/onprem/systemd/mini-cloud-vpn.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl restart mini-cloud-vpn frr

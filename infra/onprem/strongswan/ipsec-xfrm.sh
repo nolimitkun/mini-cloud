@@ -30,6 +30,7 @@ sysctl -w "net.ipv4.conf.${WAN_IF}.rp_filter=0"
 # DHCP lease is picked up by the next boot or re-run.
 LAN_IP="${LAN_IP:-$(ip -4 -o addr show dev "$WAN_IF" scope global | awk '{ split($4, a, "/"); print a[1]; exit }')}"
 [ -n "$LAN_IP" ] || { echo "no IPv4 address on $WAN_IF; set LAN_IP" >&2; exit 1; }
+command -v nft > /dev/null || { echo "nft not found; install nftables" >&2; exit 1; }
 nft delete table ip mini_cloud_vpn 2>/dev/null || true
 nft -f - <<NFT
 table ip mini_cloud_vpn {
