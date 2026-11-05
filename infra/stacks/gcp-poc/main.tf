@@ -164,6 +164,13 @@ variable "enable_stt" {
   default = true
 }
 
+# false: an org admin owns the hub's eu location exception, and applies need no
+# org-policy permission (doc 11, Deployer roles).
+variable "stt_manage_location_policy" {
+  type    = bool
+  default = true
+}
+
 # PSC endpoint for Google APIs, from the GCP private-endpoint block (doc 02 §1.3).
 variable "psc_googleapis_ip" {
   type    = string
@@ -183,9 +190,10 @@ variable "psc_aiplatform_eu_ip" {
 }
 
 module "stt" {
-  count      = var.enable_stt ? 1 : 0
-  source     = "../../modules/gcp-stt-poc"
-  project_id = var.project_id
+  count                  = var.enable_stt ? 1 : 0
+  source                 = "../../modules/gcp-stt-poc"
+  project_id             = var.project_id
+  manage_location_policy = var.stt_manage_location_policy
   providers = {
     google           = google
     google.hub_quota = google.hub_quota
