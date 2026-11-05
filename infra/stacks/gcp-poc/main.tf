@@ -157,7 +157,7 @@ variable "lakehouse_grant_quota_access" {
   default = true
 }
 
-# --- Speech-to-Text for on-prem (LiteLLM chirp-3 model, doc 11) ---
+# --- Speech services for on-prem (LiteLLM chirp-3, TTS and Gemini models, doc 11) ---
 
 variable "enable_stt" {
   type    = bool
@@ -168,6 +168,18 @@ variable "enable_stt" {
 variable "psc_googleapis_ip" {
   type    = string
   default = "10.48.64.2"
+}
+
+# Regional PSC endpoint for Vertex AI in the eu multi-region (Gemini TTS), in
+# its own subnet of the private-endpoint block, clear of psc_googleapis_ip.
+variable "psc_rep_subnet_cidr" {
+  type    = string
+  default = "10.48.65.0/28"
+}
+
+variable "psc_aiplatform_eu_ip" {
+  type    = string
+  default = "10.48.65.2"
 }
 
 module "stt" {
@@ -197,6 +209,10 @@ module "vpn_poc" {
   # spoke lives in the hub VPC so DEFAULT advertisement already covers it.
   advertised_extra_ranges = (var.enable_spoke && var.spoke_mode == "peering") ? [var.spoke_cidr] : []
   psc_googleapis_ip       = var.enable_stt ? var.psc_googleapis_ip : null
+  psc_rep_subnet_cidr     = var.enable_stt ? var.psc_rep_subnet_cidr : null
+  psc_rep_endpoints = var.enable_stt ? {
+    aiplatform-eu = { target = module.stt[0].aiplatform_eu_rep_host, ip = var.psc_aiplatform_eu_ip }
+  } : {}
 }
 
 # Spoke A — VPC peering (works without an org)
@@ -282,4 +298,5 @@ output "iceberg_catalog_sa" {
 
 output "psc_googleapis_ip" { value = module.vpn_poc.psc_googleapis_ip }
 output "stt_service_account" { value = try(module.stt[0].service_account_email, null) }
+output "psc_rep_ips" { value = module.vpn_poc.psc_rep_ips }
 output "stt_credential_config" { value = try(module.stt[0].credential_config, null) }

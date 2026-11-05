@@ -55,3 +55,8 @@ output "psc_googleapis_ip" {
   description = "Private Service Connect endpoint for Google APIs (null when disabled)."
   value       = try(google_compute_global_address.psc_googleapis[0].address, null)
 }
+
+output "psc_rep_ips" {
+  description = "Regional PSC endpoints: target hostname => internal IP (point on-prem DNS at these)."
+  value       = { for k, e in google_network_connectivity_regional_endpoint.rep : e.target_google_api => e.address }
+}

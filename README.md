@@ -36,8 +36,8 @@ infra/     Terraform skeleton: hub+spoke modules ×3 clouds, policy guardrails, 
 - **Lakehouse PoC:** [docs/10-lakehouse-poc.md](docs/10-lakehouse-poc.md) — GCS data lake +
   BigLake Iceberg REST runtime catalog (vended credentials) in the spoke project; open engines
   (Spark/Trino/Flink/PyIceberg) read via the catalog, BigQuery via metastore federation.
-- **Speech-to-Text and Text-to-Speech from on-prem:** [docs/11-stt-poc.md](docs/11-stt-poc.md) —
-  Chirp 3 transcription and Chirp 3 HD voices as LiteLLM models on the on-prem cluster, over the VPN to a Private Service Connect endpoint, with
+- **Speech services from on-prem:** [docs/11-stt-poc.md](docs/11-stt-poc.md) — Chirp 3 and Gemini
+  Live transcription, Chirp 3 HD and Gemini 3.8 TTS voices as LiteLLM models on the on-prem cluster, over the VPN to a Private Service Connect endpoint, with
   no key (workload identity federation).
 - **Live diagram:** [docs/09-live-diagram.md](docs/09-live-diagram.md) — SVG generated from
   Terraform state on every change (Inframap + Graphviz, CI-committed).

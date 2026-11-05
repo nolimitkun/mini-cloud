@@ -85,3 +85,18 @@ variable "psc_googleapis_ip" {
   default     = null
   description = "Internal IP for a Private Service Connect endpoint to Google APIs (all-apis bundle), advertised to on-prem as a /32. Must sit outside every subnet; null skips it."
 }
+
+variable "psc_rep_subnet_cidr" {
+  type        = string
+  default     = null
+  description = "Subnet in var.region holding regional Private Service Connect endpoints to Google APIs (psc_rep_endpoints). Advertised to on-prem with the other subnets; null skips the subnet and the endpoints."
+}
+
+variable "psc_rep_endpoints" {
+  type = map(object({
+    target = string # e.g. aiplatform.eu.rep.googleapis.com
+    ip     = string # inside psc_rep_subnet_cidr
+  }))
+  default     = {}
+  description = "Regional/multi-regional API endpoints (*.rep.googleapis.com) to reach privately. The all-apis endpoint can't serve them: its *.googleapis.com certificate doesn't match two-level rep names."
+}
