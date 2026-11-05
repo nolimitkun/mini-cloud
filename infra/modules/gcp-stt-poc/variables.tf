@@ -33,3 +33,9 @@ variable "k8s_subject" {
   default     = "system:serviceaccount:mini-platform:litellm"
   description = "The only Kubernetes service account allowed to impersonate the SA."
 }
+
+variable "manage_location_policy" {
+  type        = bool
+  default     = true
+  description = "Manage the project's gcp.resourceLocations exception (adds eu) here. false when an org admin creates and owns it outside this state."
+}

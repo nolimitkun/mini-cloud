@@ -208,11 +208,26 @@ firewall rules.
 once (`roles/storage.admin`). After that the deployer needs only `roles/storage.objectUser` on that
 bucket. Local state needs no role.
 
-**Outside the project.** Chirp 3 and the Gemini 3.8 TTS models run only in `us`, `eu` or `global`.
+**Location exception.** Chirp 3 and the Gemini 3.8 TTS models run only in `us`, `eu` or `global`.
 If an org policy restricts locations, as this org's `europe-west1` lock does, the project needs a
-`gcp.resourceLocations` exception adding `eu`. That takes `roles/orgpolicy.policyAdmin`, which can
-only be granted at org or folder level and covers every org policy. An org admin should create the
-exception once rather than give the deployer that role. With no such policy, skip it.
+`gcp.resourceLocations` exception adding `eu`. The `gcp-stt-poc` module manages it
+(`google_org_policy_policy.allow_eu`) unless told otherwise. Writing it, and even refreshing it,
+needs org-policy permissions:
+- **Terraform manages it (default, `stt_manage_location_policy = true`):** the deployer also needs
+  `roles/orgpolicy.policyAdmin`. It can only be granted at org or folder level, and it covers every
+  org policy.
+- **An org admin owns it (least privilege):** set `stt_manage_location_policy = false`. The
+  exception is then outside Terraform's state, so the deployer needs no org-policy permission, not
+  even read access. The org admin creates it once (or skips it if no location policy applies).
+
+To hand an existing exception over, take it out of state first:
+
+```bash
+terraform state rm 'module.stt[0].google_org_policy_policy.allow_eu[0]'
+```
+
+Then set `stt_manage_location_policy = false`. Setting the variable without `state rm` makes the next
+apply **delete** the exception.
 
 **Not needed:**
 - `owner` or `editor`
