@@ -27,6 +27,24 @@ client (Open WebUI, kagent, curl …) with a LiteLLM key
 | on-prem host | nftables source rewrite in `ipsec-xfrm.sh` | Without it, traffic into the tunnel leaves as `169.254.0.2`, which GCP can't reply to. |
 | mini-platform-deployment | `chirp-3` model, `litellm` ServiceAccount, projected token, `scripts/gcp-psc-dns.sh` | The client side: token, credential config and DNS. |
 
+## Google APIs
+
+All in the hub project (`mini-cloud-499820`). The `gcp-stt-poc` module enables the first four, with
+`disable_on_destroy = false`, so removing the module leaves them on.
+
+| API | Enabled by | Used for |
+|-----|------------|----------|
+| `speech.googleapis.com` | `gcp-stt-poc` | Speech-to-Text v2 `recognize`, model `chirp_3`, location `eu` |
+| `sts.googleapis.com` | `gcp-stt-poc` | Trades the pod's Kubernetes token for a federated Google token |
+| `iamcredentials.googleapis.com` | `gcp-stt-poc` | Trades that for a one-hour token for `litellm-stt` |
+| `iam.googleapis.com` | `gcp-stt-poc`, `infra/ci/setup-plan-identity.sh` | The pool, provider and SA; the CI plan job bills the hub, so it needs this to read them |
+| `compute.googleapis.com` | already on, **not managed by Terraform** | PSC endpoint, Cloud VPN, Cloud Router |
+| `orgpolicy.googleapis.com` | already on, **not managed by Terraform** | The `eu` location exception |
+
+The last two predate this work. A fresh hub project needs them enabled by hand before the first
+apply. No billing API (`cloudbilling`, `billingbudgets`) is enabled; budgets and billing export
+aren't set up.
+
 ## How the keyless login works
 
 It's the same federation as the GitHub workflows (doc 09), with Kubernetes as the identity
@@ -86,5 +104,34 @@ curl -s localhost:4000/v1/audio/transcriptions -H "Authorization: Bearer $KEY" \
 - **Tunnel down = no STT.** Cluster DNS sends the three API names only to the PSC IP. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
   works that way, since the APIs are public, only the private path is lost.
-- **Cost.** A PSC endpoint for Google APIs plus Chirp 3 per second of audio; both are small at test
-  volume.
+- **Cost.** See [Cost](#cost).
+
+## Cost
+
+Billed to the hub project. List prices in USD; check the
+[Speech-to-Text](https://cloud.google.com/speech-to-text/pricing) and
+[VPC](https://cloud.google.com/vpc/network-pricing#psc-forwarding-rules) pricing pages before budgeting.
+
+| Item | Price | Monthly at test volume |
+|------|-------|------------------------|
+| PSC endpoint for Google APIs (added here) | $0.01 per hour | ≈ $7.30 |
+| PSC data processing | none: a global Google APIs endpoint has no data charge | $0 |
+| Chirp 3 transcription (added here) | $0.016 per minute (standard v2 recognition, first 500k min/month) | 2-second clip ≈ $0.0005; 1,000 min ≈ $16 |
+| Cloud VPN tunnel (already there, doc 08) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
+| Replies back over the tunnel | internet egress rates (the peer is outside Google) | ≈ $0, text only |
+| STS, IAM Credentials, pool, SA, location policy, Cloud Router | free | $0 |
+
+So this use case adds about **$7–8 a month fixed** plus the per-minute speech charge, and the fixed
+part doesn't grow with traffic. One figure is unconfirmed: Google's page lists $0.016/min for
+standard v2 recognition, and that Chirp 3 has no premium comes from third-party sources.
+LiteLLM charges the same rate on its side: `litellm_spend_metric_total` recorded $0.00053 for the
+2-second test.
+
+### Watching usage
+
+- **LiteLLM (Prometheus/Grafana in mini-platform):** `litellm_proxy_total_requests_metric_total`
+  by `requested_model="chirp-3"` and `status_code`, `litellm_llm_api_latency_metric`,
+  `litellm_spend_metric_total`. Traces go to Tempo and Langfuse.
+- **Google (Cloud Monitoring, free):** `serviceruntime.googleapis.com/api/request_count` for
+  `speech.googleapis.com`, method `Speech.Recognize`, by response code.
+- No dashboard, alert or budget exists yet for chirp-3.
