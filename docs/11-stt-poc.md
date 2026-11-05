@@ -164,7 +164,66 @@ billed to the hub. Ways to narrow it, none applied yet:
   `roles/viewer`, `roles/iam.securityReviewer` and `roles/serviceusage.serviceUsageConsumer` on the
   hub. With those it plans these resources, IAM policies and the custom role included, but can't
   change them.
-- **Applies:** an owner runs them. The location exception also needs org-policy admin rights.
+- **Applies:** an owner runs them today. The roles below are enough, without owner.
+
+### Deployer roles (least privilege)
+
+The roles needed to build the speech services from scratch in a single existing project. That
+means the identity pool, `litellm-stt`, the APIs and, for the private path, the VPN and PSC
+endpoints. No `owner` or `editor`. Each role was checked with `gcloud iam roles describe` against
+the resources Terraform creates.
+
+**Always needed**, on the project:
+
+| Role | Creates |
+|------|---------|
+| `roles/serviceusage.serviceUsageAdmin` | Turns on `speech`, `texttospeech`, `aiplatform`, `sts`, `iamcredentials`, `iam` (plus `compute` and `networkconnectivity` for the private path). Also lets Terraform bill the project as quota project. |
+| `roles/iam.serviceAccountAdmin` | `litellm-stt` and its single `workloadIdentityUser` binding |
+| `roles/iam.workloadIdentityPoolAdmin` | Pool `onprem-k8s` and provider `minikube`; later JWKS uploads (`refresh-k8s-jwks.sh`) |
+| `roles/iam.roleAdmin` | The custom role `litellmVertexCaller` |
+| `roles/resourcemanager.projectIamAdmin`, **with the condition below** | The three project-level grants to `litellm-stt`, and nothing else |
+
+```
+api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', [])
+  .hasOnly(['roles/speech.client',
+            'roles/serviceusage.serviceUsageConsumer',
+            'projects/PROJECT_ID/roles/litellmVertexCaller'])
+```
+
+Without the condition, `projectIamAdmin` could grant any role to anyone. Leaving out
+`roles/iam.roleAdmin` means giving `litellm-stt` the predefined `roles/aiplatform.user` instead of
+the custom role, which also lets it create and delete Vertex resources.
+
+**Private path only** (VPN and PSC endpoints):
+
+| Role | Creates |
+|------|---------|
+| `roles/compute.networkAdmin` | VPC and subnets, HA VPN gateway, peer gateway, tunnel, Cloud Router and BGP peer, the `all-apis` PSC endpoint (with its Service Directory namespace), the regional endpoint for `aiplatform.eu.rep.googleapis.com` |
+
+Without the VPN, LiteLLM calls the same APIs over the internet with the same keyless login, and
+this role isn't needed. `roles/compute.securityAdmin` isn't needed either: PSC endpoints need no
+firewall rules.
+
+**Terraform state.** If the state lives in a bucket of the project, someone creates the bucket
+once (`roles/storage.admin`). After that the deployer needs only `roles/storage.objectUser` on that
+bucket. Local state needs no role.
+
+**Outside the project.** Chirp 3 and the Gemini 3.8 TTS models run only in `us`, `eu` or `global`.
+If an org policy restricts locations, as this org's `europe-west1` lock does, the project needs a
+`gcp.resourceLocations` exception adding `eu`. That takes `roles/orgpolicy.policyAdmin`, which can
+only be granted at org or folder level and covers every org policy. An org admin should create the
+exception once rather than give the deployer that role. With no such policy, skip it.
+
+**Not needed:**
+- `owner` or `editor`
+- any Speech or Text-to-Speech admin role (Text-to-Speech has no permission of its own)
+- `aiplatform.admin`
+- `iam.serviceAccountTokenCreator`: on-prem logs in through the pool, not through the deployer
+
+In this repo the speech services sit in the hub project (`mini-cloud-499820`), and the same roles
+cover them there. The hub's other resources (firewall rules, Shared VPC, the lakehouse spoke) need
+more, outside this doc. To prove the list, run a from-scratch apply into a fresh project with a
+service account holding exactly these roles: a 403 names any missing permission.
 
 ## Bring-up
 
