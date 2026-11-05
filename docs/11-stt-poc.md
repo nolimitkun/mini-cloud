@@ -220,10 +220,14 @@ needs org-policy permissions:
   exception is then outside Terraform's state, so the deployer needs no org-policy permission, not
   even read access. The org admin creates it once (or skips it if no location policy applies).
 
-To hand an existing exception over, take it out of state first:
+To hand an existing exception over, take it out of state first. Run this in
+`infra/stacks/gcp-poc` with the credentials you apply with: the state is shared, in the GCS bucket.
+The address ends in `allow_eu` before the first apply with the `moved` block and in `allow_eu[0]`
+after it, so look it up:
 
 ```bash
-terraform state rm 'module.stt[0].google_org_policy_policy.allow_eu[0]'
+terraform state list | grep allow_eu
+terraform state rm '<the address printed above>'
 ```
 
 Then set `stt_manage_location_policy = false`. Setting the variable without `state rm` makes the next
