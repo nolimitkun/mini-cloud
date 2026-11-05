@@ -37,8 +37,9 @@ infra/     Terraform skeleton: hub+spoke modules ×3 clouds, policy guardrails, 
   BigLake Iceberg REST runtime catalog (vended credentials) in the spoke project; open engines
   (Spark/Trino/Flink/PyIceberg) read via the catalog, BigQuery via metastore federation.
 - **Speech services from on-prem:** [docs/11-stt-poc.md](docs/11-stt-poc.md) — Chirp 3 and Gemini
-  Live transcription, Chirp 3 HD and Gemini 3.8 TTS voices as LiteLLM models on the on-prem cluster, over the VPN to a Private Service Connect endpoint, with
-  no key (workload identity federation).
+  Live transcription, Chirp 3 HD and Gemini 3.8 TTS voices as LiteLLM models on the on-prem
+  cluster, over the VPN to Private Service Connect endpoints, with no key (workload identity
+  federation).
 - **Live diagram:** [docs/09-live-diagram.md](docs/09-live-diagram.md) — SVG generated from
   Terraform state on every change (Inframap + Graphviz, CI-committed).
 
