@@ -115,15 +115,15 @@ Billed to the hub project. List prices in USD; check the
 | Item | Price | Monthly at test volume |
 |------|-------|------------------------|
 | PSC endpoint for Google APIs (added here) | $0.01 per hour | ≈ $7.30 |
-| PSC data processing | ≈ $0.01 per GB, audio is small | ≈ $0 |
+| PSC data processing | none: a global Google APIs endpoint has no data charge | $0 |
 | Chirp 3 transcription (added here) | $0.016 per minute (standard v2 recognition, first 500k min/month) | 2-second clip ≈ $0.0005; 1,000 min ≈ $16 |
 | Cloud VPN tunnel (already there, doc 08) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
 | Replies back over the tunnel | internet egress rates (the peer is outside Google) | ≈ $0, text only |
 | STS, IAM Credentials, pool, SA, location policy, Cloud Router | free | $0 |
 
-So this use case adds about **$7–8 a month fixed** plus the per-minute speech charge. Two figures are
-unconfirmed: Google's page lists $0.016/min for standard v2 recognition, and that Chirp 3 has no
-premium comes from third-party sources; the PSC data-processing rate comes from a community post.
+So this use case adds about **$7–8 a month fixed** plus the per-minute speech charge, and the fixed
+part doesn't grow with traffic. One figure is unconfirmed: Google's page lists $0.016/min for
+standard v2 recognition, and that Chirp 3 has no premium comes from third-party sources.
 LiteLLM charges the same rate on its side: `litellm_spend_metric_total` recorded $0.00053 for the
 2-second test.
 
