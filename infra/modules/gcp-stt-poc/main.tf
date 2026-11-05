@@ -1,5 +1,5 @@
-# Speech-to-Text (Chirp 3) and Text-to-Speech for on-prem callers, without a
-# key file.
+# Speech for on-prem callers, without a key file: Speech-to-Text (Chirp 3),
+# Text-to-Speech, and Gemini on Vertex AI (Gemini TTS, Gemini Live).
 #
 # The on-prem Kubernetes cluster signs service-account tokens; this pool trusts
 # that cluster's public keys (uploaded as JWKS, since its issuer is not public)
@@ -20,6 +20,14 @@ terraform {
 resource "google_project_service" "speech" {
   project            = var.project_id
   service            = "speech.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Vertex AI serves the Gemini TTS models (eu multi-region) and Gemini Live
+# (europe-west1).
+resource "google_project_service" "aiplatform" {
+  project            = var.project_id
+  service            = "aiplatform.googleapis.com"
   disable_on_destroy = false
 }
 
@@ -70,6 +78,23 @@ resource "google_project_iam_member" "stt" {
   project  = var.project_id
   role     = each.value
   member   = "serviceAccount:${google_service_account.stt.email}"
+}
+
+# Calling a Gemini model (generateContent, BidiGenerateContent) needs only
+# aiplatform.endpoints.predict; roles/aiplatform.user would also let the SA
+# create and delete Vertex resources.
+resource "google_project_iam_custom_role" "vertex_caller" {
+  project     = var.project_id
+  role_id     = "litellmVertexCaller"
+  title       = "LiteLLM Vertex AI caller"
+  description = "Call Gemini models on Vertex AI, nothing else."
+  permissions = ["aiplatform.endpoints.predict"]
+}
+
+resource "google_project_iam_member" "vertex_caller" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.vertex_caller.id
+  member  = "serviceAccount:${google_service_account.stt.email}"
 }
 
 resource "google_iam_workload_identity_pool" "k8s" {

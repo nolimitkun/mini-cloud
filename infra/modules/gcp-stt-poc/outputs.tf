@@ -19,3 +19,10 @@ output "credential_config" {
     credential_source                 = { file = "/var/run/secrets/gcp-wif/token" }
   })
 }
+
+# Hostname of Vertex AI's eu multi-region endpoint, for the regional PSC
+# endpoint in the VPN module. Waits for the API: PSC doesn't enable it.
+output "aiplatform_eu_rep_host" {
+  value      = "aiplatform.eu.rep.googleapis.com"
+  depends_on = [google_project_service.aiplatform]
+}

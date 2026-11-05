@@ -40,7 +40,7 @@ service and **no Internet path** for inter-site traffic.
 | 08 | [PoC — VPN (GCP)](08-poc-vpn.md) | LAN-as-on-prem + strongSwan site-to-site VPN to GCP (overrides D1 for PoC) |
 | 09 | [Live diagram](09-live-diagram.md) | Generated diagram from Terraform state (Inframap + Graphviz), CI refresh |
 | 10 | [Lakehouse PoC (GCP)](10-lakehouse-poc.md) | GCS data lake + BigLake Iceberg REST runtime catalog; open engines + BigQuery via metastore federation |
-| 11 | [Speech-to-Text and Text-to-Speech from on-prem](11-stt-poc.md) | Chirp 3 transcription and Chirp 3 HD voices through on-prem LiteLLM, over the VPN to a PSC endpoint, keyless via workload identity federation |
+| 11 | [Speech services from on-prem](11-stt-poc.md) | Chirp 3 transcription, Chirp 3 HD and Gemini 3.8 TTS voices, and Gemini Live transcription through on-prem LiteLLM, over the VPN to a PSC endpoint, keyless via workload identity federation |
 
 **Diagrams:** see the [diagram gallery](diagrams/README.md) — topology, landing zone, east-west inspection, buildout phases, cost breakdown, lakehouse architecture (also embedded in the docs above).
 

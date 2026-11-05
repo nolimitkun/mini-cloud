@@ -133,6 +133,31 @@ resource "google_compute_global_forwarding_rule" "psc_googleapis" {
   load_balancing_scheme = ""
 }
 
+# Regional endpoints (*.rep.googleapis.com), e.g. Vertex AI in the eu
+# multi-region. Each is a PSC forwarding rule with an IP from a regular subnet;
+# the router advertises the subnet with ALL_SUBNETS, and on-prem DNS points the
+# rep hostname at the IP.
+resource "google_compute_subnetwork" "psc_rep" {
+  count         = var.psc_rep_subnet_cidr == null ? 0 : 1
+  name          = "subnet-poc-psc-endpoints"
+  project       = var.project_id
+  region        = var.region
+  network       = google_compute_network.poc.id
+  ip_cidr_range = var.psc_rep_subnet_cidr
+}
+
+resource "google_network_connectivity_regional_endpoint" "rep" {
+  for_each          = var.psc_rep_subnet_cidr == null ? {} : var.psc_rep_endpoints
+  name              = "psc-${each.key}"
+  project           = var.project_id
+  location          = var.region
+  target_google_api = each.value.target
+  access_type       = "REGIONAL"
+  address           = each.value.ip
+  network           = google_compute_network.poc.id
+  subnetwork        = google_compute_subnetwork.psc_rep[0].id
+}
+
 locals {
   advertised_ranges = concat(
     var.advertised_extra_ranges,
