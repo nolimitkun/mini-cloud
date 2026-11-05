@@ -155,9 +155,10 @@ billed to the hub. Ways to narrow it, none applied yet:
 
 - **Location policy:** a project-level `gcp.resourceLocations` policy on the hub inherits the org's
   `europe-west1` list and adds `eu`. Other projects keep the org lock.
-- **CI plan job:** the GitHub Actions identity (`infra/ci/setup-plan-identity.sh`) holds `roles/viewer`,
-  `roles/iam.securityReviewer` and `roles/serviceusage.serviceUsageConsumer` on the hub. With those
-  it plans these resources, IAM policies and the custom role included, but can't change them.
+- **CI plan job:** the GitHub Actions identity (`infra/ci/setup-plan-identity.sh`) holds
+  `roles/viewer`, `roles/iam.securityReviewer` and `roles/serviceusage.serviceUsageConsumer` on the
+  hub. With those it plans these resources, IAM policies and the custom role included, but can't
+  change them.
 - **Applies:** an owner runs them. The location exception also needs org-policy admin rights.
 
 ## Bring-up
