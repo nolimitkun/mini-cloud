@@ -84,6 +84,82 @@ provider:
 
 The credential config holds no secret, which is why it can live in Git.
 
+## IAM
+
+Everything below was read back from the hub project and the cluster on 2026-11-05.
+
+### Identities
+
+| Identity | Where | Part in the flow |
+|----------|-------|------------------|
+| `system:serviceaccount:mini-platform:litellm` | Kubernetes service account (created by the postgresql release) | What the LiteLLM pod and its PreSync migration Job run as. Its projected token is the only credential on-prem. |
+| Pool `onprem-k8s`, provider `minikube` | Workload identity federation, hub project | Trusts tokens signed by the uploaded cluster keys, issuer `https://kubernetes.default.svc.cluster.local`. Mapping `google.subject = assertion.sub`; condition `assertion.sub == 'system:serviceaccount:mini-platform:litellm'`. No `allowedAudiences`, so the token's audience must be the provider's own name (which the projected volume requests). |
+| `litellm-stt@mini-cloud-499820.iam.gserviceaccount.com` | Google service account, hub project | The identity every Google call runs as. **No user-managed keys** (0); it is only ever impersonated. |
+| LiteLLM keys | LiteLLM (master key in Secret `litellm-master-key`, virtual keys in its database) | Who may call the models on-prem. Google never sees them; a virtual key can be limited to some models. |
+
+### What `litellm-stt` may do
+
+Its only roles, all on the hub project:
+
+| Role | Permissions | Used by |
+|------|-------------|---------|
+| `roles/speech.client` | 13: `speech.recognizers.recognize`, `speech.adaptations.execute`, `speech.operations.wait`, and get/list on recognizers, phrase sets, custom classes, operations, locations. No create, update or delete. | `chirp-3` |
+| `projects/mini-cloud-499820/roles/litellmVertexCaller` (custom) | `aiplatform.endpoints.predict` only | Gemini TTS (`generateContent`) and Gemini Live (`BidiGenerateContent`). `roles/aiplatform.user` would add creating and deleting Vertex resources. |
+| `roles/serviceusage.serviceUsageConsumer` | `serviceusage.services.use` (and read) | LiteLLM sends `x-goog-user-project`, so each call bills the hub as quota project. Text-to-Speech needs nothing more: it has no permission of its own. |
+
+It can't read storage, BigQuery or secrets, can't change IAM, and can't create Vertex endpoints,
+recognizers or any other resource.
+
+### Who can act as `litellm-stt`
+
+On the Google side, two checks must both pass:
+
+1. **The provider's attribute condition** rejects any token whose subject isn't
+   `system:serviceaccount:mini-platform:litellm` (`rejected by the attribute condition`).
+2. **The service account's own policy** has one binding: `roles/iam.workloadIdentityUser` for
+   `principal://iam.googleapis.com/projects/311800512343/locations/global/workloadIdentityPools/onprem-k8s/subject/system:serviceaccount:mini-platform:litellm`.
+
+Hub project owners (your user and the `automation` service account) can also impersonate it, as
+owners can any service account in the project.
+
+On the Kubernetes side, Google trusts anything holding a valid `litellm` token. Kubernetes has no
+permission for "run as this service account": whoever can create pods in `mini-platform` can start
+one as `litellm`. Checked with `kubectl auth can-i`:
+
+| Who | Can get a `litellm` token by |
+|-----|------------------------------|
+| The kubelet | Mounting it into pods that run as `litellm` (LiteLLM, its migration Job) |
+| Argo CD application controller | Creating pods (it deploys the namespace) |
+| JupyterHub `hub` | Creating pods (it spawns user servers) |
+| Spark operator `spark-operator-controller` and `spark-operator-spark` | Creating pods, so a Spark job's driver can start one |
+| kagent `kagent-kmcp-controller-manager` | Requesting a token directly (`serviceaccounts/token` in the namespace) |
+| Cluster admins | Anything |
+
+So user code that runs through Spark, or a compromised JupyterHub or kagent controller, could call
+the speech APIs as `litellm-stt`. That's limited to transcribing, synthesizing and calling Gemini,
+billed to the hub. Ways to narrow it, none applied yet:
+- Move LiteLLM to its own namespace and update the attribute condition.
+- An admission policy that admits `serviceAccountName: litellm` only for the LiteLLM pods.
+- Drop `serviceaccounts/token` from kmcp's namespace role.
+
+### Lifetimes and revocation
+
+- **Token lifetimes:** the projected Kubernetes token lives one hour and the kubelet rotates it.
+  The federated token and the impersonated access token also last one hour.
+- **Revoking:** remove the `workloadIdentityUser` binding or disable the provider, and no new tokens
+  are issued. Access tokens already issued keep working until they expire, at most an hour.
+- **Recreated cluster:** new signing keys mean every exchange fails with `invalid_grant` until
+  `infra/onprem/refresh-k8s-jwks.sh` uploads them.
+
+### Related controls
+
+- **Location policy:** a project-level `gcp.resourceLocations` policy on the hub inherits the org's
+  `europe-west1` list and adds `eu`. Other projects keep the org lock.
+- **CI plan job:** the GitHub Actions identity (`infra/ci/setup-plan-identity.sh`) holds `roles/viewer`,
+  `roles/iam.securityReviewer` and `roles/serviceusage.serviceUsageConsumer` on the hub. With those
+  it plans these resources, IAM policies and the custom role included, but can't change them.
+- **Applies:** an owner runs them. The location exception also needs org-policy admin rights.
+
 ## Bring-up
 
 ```bash
@@ -148,7 +224,8 @@ the tunnel.
   JSON, or every token exchange fails with `invalid_grant`.
 - **Voices.** `tts-chirp-3-hd` needs a Google voice name (`<lang>-Chirp3-HD-<voice>`); the OpenAI
   names (`alloy`, `nova` …) fall back to older WaveNet voices. The Gemini TTS models take Gemini
-  voice names (`Kore`, `Charon`, `Aoede` …) and return WAV. Through LiteLLM's `/v1/audio/speech`
+  voice names (`Kore`, `Charon`, `Aoede` …) and always return 16-bit 24 kHz WAV, whatever
+  `response_format` asks for. Through LiteLLM's `/v1/audio/speech`
   they read the whole input aloud: a lead-in like "Say cheerfully:" is spoken, not obeyed.
 - **Tunnel down = no speech.** Cluster DNS sends the API names only to the PSC IPs. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
