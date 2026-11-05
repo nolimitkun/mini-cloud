@@ -184,8 +184,9 @@ Unconfirmed figures:
 - The Gemini rates are the Gemini API's Standard tier. Vertex AI's page didn't render when this was
   written. The regional endpoint's per-GB rate isn't confirmed either.
 
-LiteLLM 1.98's price map doesn't know the Gemini 3.8 TTS models, so their costs are set in each
-model's `model_info` to keep `litellm_spend_metric_total` honest. Update those numbers in 2027.
+LiteLLM loads its cost map from upstream at startup; that map already lists the Gemini 3.8 TTS
+models ($9 and $6 per 1M audio tokens) and Gemini Live ($3 in, $12 out), matching the rates above,
+so `litellm_spend_metric_total` follows Google's list prices without overrides.
 
 ### Watching usage
 
