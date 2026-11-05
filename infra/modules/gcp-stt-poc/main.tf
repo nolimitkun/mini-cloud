@@ -1,9 +1,10 @@
-# Speech-to-Text (Chirp 3) for on-prem callers, without a key file.
+# Speech-to-Text (Chirp 3) and Text-to-Speech for on-prem callers, without a
+# key file.
 #
 # The on-prem Kubernetes cluster signs service-account tokens; this pool trusts
 # that cluster's public keys (uploaded as JWKS, since its issuer is not public)
 # and lets one Kubernetes service account impersonate a Google SA that can only
-# call Speech-to-Text. Traffic reaches the API through the PSC endpoint in the
+# call the speech APIs. Traffic reaches the API through the PSC endpoint in the
 # VPN module, not the internet.
 
 terraform {
@@ -19,6 +20,14 @@ terraform {
 resource "google_project_service" "speech" {
   project            = var.project_id
   service            = "speech.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Text-to-Speech has no IAM permission of its own: any caller that may bill the
+# project (serviceUsageConsumer, below) can synthesize.
+resource "google_project_service" "tts" {
+  project            = var.project_id
+  service            = "texttospeech.googleapis.com"
   disable_on_destroy = false
 }
 
