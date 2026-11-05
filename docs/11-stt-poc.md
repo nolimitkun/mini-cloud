@@ -120,8 +120,8 @@ curl -s localhost:4000/v1/audio/speech -H "Authorization: Bearer $KEY" -H 'Conte
   -o bonjour.mp3
 
 curl -s localhost:4000/v1/audio/speech -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"model":"gemini-3.8-flash-tts","input":"Say cheerfully: the tunnel works.","voice":"Kore"}' \
-  -o gemini.wav
+  -d '{"model":"gemini-3.8-flash-tts","input":"The tunnel to Belgium works.","voice":"Kore"}' \
+  -o gemini.wav                               # 16-bit mono 24 kHz WAV
 ```
 
 Feeding the audio back to `chirp-3` is a quick round trip check. `gemini-live` needs a websocket
@@ -141,13 +141,15 @@ the tunnel.
   needs the exception widened, plus DNS entries (and, for Vertex `rep` names, another regional
   endpoint).
 - **Gemini Live.** The websocket goes through the ingress at `litellm.test` too, but sessions are
-  long-lived: proxy timeouts apply. Google's GA native-audio model has open reports of silent audio
-  and of failures after the first turn in `europe-west1`; transcription is the part relied on here.
+  long-lived: proxy timeouts apply. Every turn returns the input transcript and a spoken reply (the
+  model answers; LiteLLM doesn't offer a transcribe-only mode). Tested over two turns in
+  `europe-west1`; Google's GA model has open reports of silent audio in production.
 - **Recreated cluster.** New signing keys: run `infra/onprem/refresh-k8s-jwks.sh` and commit the
   JSON, or every token exchange fails with `invalid_grant`.
 - **Voices.** `tts-chirp-3-hd` needs a Google voice name (`<lang>-Chirp3-HD-<voice>`); the OpenAI
   names (`alloy`, `nova` …) fall back to older WaveNet voices. The Gemini TTS models take Gemini
-  voice names (`Kore`, `Charon`, `Aoede` …) and follow style instructions in the text.
+  voice names (`Kore`, `Charon`, `Aoede` …) and return WAV. Through LiteLLM's `/v1/audio/speech`
+  they read the whole input aloud: a lead-in like "Say cheerfully:" is spoken, not obeyed.
 - **Tunnel down = no speech.** Cluster DNS sends the API names only to the PSC IPs. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
   works that way, since the APIs are public, only the private path is lost.
@@ -184,9 +186,11 @@ Unconfirmed figures:
 - The Gemini rates are the Gemini API's Standard tier. Vertex AI's page didn't render when this was
   written. The regional endpoint's per-GB rate isn't confirmed either.
 
-LiteLLM loads its cost map from upstream at startup; that map already lists the Gemini 3.8 TTS
-models ($9 and $6 per 1M audio tokens) and Gemini Live ($3 in, $12 out), matching the rates above,
-so `litellm_spend_metric_total` follows Google's list prices without overrides.
+LiteLLM loads its cost map from upstream at startup; it lists the Gemini 3.8 TTS models ($9 and
+$6 per 1M audio tokens) and Gemini Live ($3 in, $12 out), matching the rates above. Gemini Live's
+spend is recorded (the two-turn test: $0.00036). The Gemini TTS models show **$0** in
+`litellm_spend_metric_total`: LiteLLM 1.98's speech bridge doesn't pass Google's token counts on, so
+their cost appears only in Google billing and Cloud Monitoring.
 
 ### Watching usage
 
