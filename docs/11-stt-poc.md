@@ -146,8 +146,13 @@ billed to the hub. Ways to narrow it, none applied yet:
 
 - **Token lifetimes:** the projected Kubernetes token lives one hour and the kubelet rotates it.
   The federated token and the impersonated access token also last one hour.
-- **Revoking:** remove the `workloadIdentityUser` binding or disable the provider, and no new tokens
-  are issued. Access tokens already issued keep working until they expire, at most an hour.
+- **Revoking:** the two controls stop different steps, so use both.
+  - **Removing the `workloadIdentityUser` binding** stops any new `litellm-stt` access token.
+    Tokens already issued keep working until they expire, at most an hour.
+  - **Disabling the provider** (or the pool) only stops new token exchanges at STS. A federated
+    token issued before that still mints `litellm-stt` tokens through the binding until it
+    expires. A caller could take a fresh one-hour token just before then, keeping access for up to
+    about two hours.
 - **Recreated cluster:** new signing keys mean every exchange fails with `invalid_grant` until
   `infra/onprem/refresh-k8s-jwks.sh` uploads them.
 
