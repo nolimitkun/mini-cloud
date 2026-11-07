@@ -50,7 +50,7 @@ flowchart LR
 ```
 
 The gateway is the only path to either tier. Everything else hangs off that:
-- Callers never get an engine URL or a Google credential.
+- Callers never get an engine URL or a Google credential (in the PoC the namespace still leaks the gateway's identity; see [Egress](#egress-making-the-gateway-the-only-door)).
 - The data class travels with the caller's key.
 - Each model belongs to a placement group.
 - A key only sees the groups its class allows.
@@ -95,13 +95,17 @@ Policy in the gateway only counts if nothing can go around it.
 
 | Layer | PoC today | Production |
 |-------|-----------|------------|
-| **Google identity** | Only `system:serviceaccount:mini-platform:litellm` can get a Google token (identity-pool condition) | Same |
+| **Google identity** | Google accepts only `system:serviceaccount:mini-platform:litellm` (identity-pool condition). But on the Kubernetes side, anything that can create pods in `mini-platform` (Argo CD, JupyterHub's `hub`, the Spark operator) or mint that service account's token (kagent's kmcp controller) can act as it ([who can act as `litellm-stt`](hub-ai-services.md#who-can-act-as-litellm-stt)) | LiteLLM alone in its own namespace, with the condition updated to match; an admission policy that admits `serviceAccountName: litellm` only for the gateway's pods; no role other than the kubelet's can create `serviceaccounts/token` for it |
 | **Network to the PSC IPs** | Any pod can reach `10.48.64.2` over the tunnel. Minikube's CNI doesn't enforce NetworkPolicy, and the tunnel host rewrites every source to its LAN address. | NetworkPolicy egress (a policy-enforcing CNI) lets only the gateway reach the PSC IPs; the on-prem NGFW allows only the gateway's source range to the GCP endpoint ranges |
 | **Other projects through PSC** | `all-apis` reaches any project's APIs, so a pod holding its own Google credential could use them | A VPC Service Controls perimeter around the hub, with the PSC endpoint on the `vpc-sc` bundle |
 | **Internet** | The home router allows it | Default-deny egress (constraint C2); public AI APIs blocked at the NGFW |
 
-The PoC gap is real but bounded: without a Google identity, a pod that reaches the PSC IP can't
-call anything. Closing it fully needs the production controls in the right-hand column.
+So in the PoC the gateway is not yet the only door. A Spark job, a notebook spawned by JupyterHub,
+or a compromised kagent controller can obtain the `litellm` token, trade it for the hub's Google
+credentials and call Gemini directly: no data-class check, no PII guardrail. Without that token, a
+pod that reaches the PSC IP can't call anything. Locking down the gateway identity (plan step 3)
+closes the main hole and fits the PoC; the network controls in the right-hand column close the
+rest in production.
 
 ---
 
@@ -208,14 +212,17 @@ A placement table per use case, which becomes the alias mapping in the gateway:
 |------|-------|-----------|
 | 1. Placement groups, one team per class, fallbacks only inward | LiteLLM values (mini-platform-deployment) | A restricted key gets 401 on every Gemini model; a GCP outage falls back to `qwen3.6-27b` |
 | 2. PII guardrail on `gcp`-group models | LiteLLM values | A test prompt with personal data on an internal key is blocked before leaving |
-| 3. Hybrid benchmark harness | `tools/` + `docs/benchmarks/` (mini-platform-deployment) | One command runs the performance matrix through the gateway; results in MLflow |
-| 4. Eval sets and on-prem judge | Langfuse datasets, MLflow | Quality scores for 2–3 real use cases on the PoC |
-| 5. Managed open-weight model on Vertex, if offered in `eu` | LiteLLM values; this repo if a new endpoint is needed | Same model compared on both tiers |
-| 6. Production egress controls | Policy-enforcing CNI, NGFW rules, VPC-SC perimeter | Only the gateway reaches the PSC IPs; other projects are unreachable through PSC |
-| 7. B300 validation | Production cluster | The same harness re-run on B300; placement table updated from those numbers |
+| 3. Lock down the gateway identity | mini-platform-deployment: own namespace for LiteLLM, admission policy, kmcp role; this repo: the identity-pool condition | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: litellm` is rejected at admission; kmcp can't request the token (`kubectl auth can-i` says no); only the gateway's pods get a Google token |
+| 4. Hybrid benchmark harness | `tools/` + `docs/benchmarks/` (mini-platform-deployment) | One command runs the performance matrix through the gateway; results in MLflow |
+| 5. Eval sets and on-prem judge | Langfuse datasets, MLflow | Quality scores for 2–3 real use cases on the PoC |
+| 6. Managed open-weight model on Vertex, if offered in `eu` | LiteLLM values; this repo if a new endpoint is needed | Same model compared on both tiers |
+| 7. Production egress controls | Policy-enforcing CNI, NGFW rules, VPC-SC perimeter | Only the gateway reaches the PSC IPs; other projects are unreachable through PSC |
+| 8. B300 validation | Production cluster | The same harness re-run on B300; placement table updated from those numbers |
 
-Steps 1–4 fit the PoC: single GPU, no new GCP resources. Step 5 depends on what Model Garden offers
-in the EU, and step 6 on production hardware and network.
+Steps 1–5 fit the PoC: single GPU, no new GCP resources (step 3 only edits the existing identity-pool
+condition). Until step 3 is done, the data-class policy can be bypassed from inside the namespace,
+so restricted workloads shouldn't rely on it. Step 6 depends on what Model Garden offers in the EU,
+and step 7 on production hardware and network.
 
 [bench]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/benchmarks/llm-d-vs-production-stack.md
 [benchpod]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/tools/vllm-bench.yaml
