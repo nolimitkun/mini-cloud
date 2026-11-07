@@ -1,6 +1,6 @@
 # On-prem VPN endpoint (PoC)
 
-Config for the **on-prem side** of the GCP VPN PoC ([docs/gcp/vpn-poc.md](../../docs/gcp/vpn-poc.md)):
+Config for the **on-prem side** of the GCP VPN PoC ([docs/gcp/vpn-poc.md](../../docs/gcp/hub-connectivity.md)):
 a Linux host on the LAN running **strongSwan** (IPsec) + **FRR** (BGP).
 
 ```

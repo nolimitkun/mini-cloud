@@ -37,7 +37,7 @@ infra/
 For a cheap proof-of-concept, the `*-vpn-poc` modules + `*-poc` stacks stand up a LAN↔cloud
 **site-to-site VPN** (GCP HA VPN + BGP, AWS Site-to-Site VPN + BGP, Azure route-based VPN + static),
 paired with the on-prem [`onprem/`](onprem/README.md) strongSwan+FRR config. This **overrides
-decision D1** for the PoC only — see [docs/08-poc-vpn.md](../docs/gcp/vpn-poc.md) (§7.1 for AWS/Azure).
+decision D1** for the PoC only — see [docs/08-poc-vpn.md](../docs/gcp/hub-connectivity.md) (§7.1 for AWS/Azure).
 
 ## Conventions
 
