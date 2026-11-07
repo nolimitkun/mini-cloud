@@ -1,7 +1,7 @@
-# Speech Services from On-Prem (Chirp 3 and Gemini via LiteLLM)
+# Speech and Gemini from On-Prem (Chirp 3 and Gemini via LiteLLM)
 
-On-prem applications transcribe and speak with Google's speech models without calling the public
-internet and without a service-account key. The on-prem side is the
+On-prem applications transcribe, speak and chat with Google's speech and Gemini models without
+calling the public internet and without a service-account key. The on-prem side is the
 [mini-platform](https://github.com/nolimitkun/mini-platform-deployment) Kubernetes cluster, whose
 **LiteLLM** gateway exposes each model as an ordinary OpenAI-style model:
 
@@ -12,6 +12,9 @@ internet and without a service-account key. The on-prem side is the
 | `gemini-3.8-flash-tts` | `/v1/audio/speech` | Gemini 3.8 Flash TTS | Vertex AI, `eu` multi-region |
 | `gemini-3.8-flash-lite-tts` | `/v1/audio/speech` | Gemini 3.8 Flash-Lite TTS | Vertex AI, `eu` multi-region |
 | `gemini-live` | `/v1/realtime` (websocket) | Gemini Live 2.5 Flash native audio, live transcription | Vertex AI, `europe-west1` |
+| `gemini-3.8-flash` | `/v1/chat/completions` | Gemini 3.8 Flash | Vertex AI, `eu` multi-region |
+| `gemini-3.5-flash` | `/v1/chat/completions` | Gemini 3.5 Flash | Vertex AI, `eu` multi-region |
+| `gemini-3.5-flash-lite` | `/v1/chat/completions` | Gemini 3.5 Flash-Lite | Vertex AI, `eu` multi-region |
 
 ```
 client (Open WebUI, kagent, curl …) with a LiteLLM key
@@ -32,6 +35,10 @@ client → LiteLLM   POST /v1/audio/speech  model=gemini-3.8-flash-tts  voice=Ko
 client ⇄ LiteLLM   WS /v1/realtime?model=gemini-live   (PCM16 audio in, transcript events out)
   ⇄ europe-west1-aiplatform.googleapis.com  (cluster DNS → 10.48.64.2)
   ⇄ Vertex AI BidiGenerateContent, location europe-west1
+
+client → LiteLLM   POST /v1/chat/completions  model=gemini-3.8-flash
+  → aiplatform.eu.rep.googleapis.com  → same regional PSC endpoint as Gemini TTS
+  → Vertex AI generateContent, location eu
 ```
 
 ## Pieces
@@ -104,7 +111,7 @@ Its only roles, all on the hub project:
 | Role | Permissions | Used by |
 |------|-------------|---------|
 | `roles/speech.client` | 13: `speech.recognizers.recognize`, `speech.adaptations.execute`, `speech.operations.wait`, and get/list on recognizers, phrase sets, custom classes, operations, locations. No create, update or delete. | `chirp-3` |
-| `projects/mini-cloud-499820/roles/litellmVertexCaller` (custom) | `aiplatform.endpoints.predict` only | Gemini TTS (`generateContent`) and Gemini Live (`BidiGenerateContent`). `roles/aiplatform.user` would add creating and deleting Vertex resources. |
+| `projects/mini-cloud-499820/roles/litellmVertexCaller` (custom) | `aiplatform.endpoints.predict` only | Gemini chat and TTS (`generateContent`) and Gemini Live (`BidiGenerateContent`); any Gemini model added later needs nothing more. `roles/aiplatform.user` would add creating and deleting Vertex resources. |
 | `roles/serviceusage.serviceUsageConsumer` | `serviceusage.services.use` (and read) | LiteLLM sends `x-goog-user-project`, so each call bills the hub as quota project. Text-to-Speech needs nothing more: it has no permission of its own. |
 
 It can't read storage, BigQuery or secrets, can't change IAM, and can't create Vertex endpoints,
@@ -282,6 +289,9 @@ curl -s localhost:4000/v1/audio/speech -H "Authorization: Bearer $KEY" -H 'Conte
 curl -s localhost:4000/v1/audio/speech -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
   -d '{"model":"gemini-3.8-flash-tts","input":"The tunnel to Belgium works.","voice":"Kore"}' \
   -o gemini.wav                               # 16-bit mono 24 kHz WAV
+
+curl -s localhost:4000/v1/chat/completions -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"model":"gemini-3.8-flash","messages":[{"role":"user","content":"What is the capital of Belgium?"}]}'
 ```
 
 Feeding the audio back to `chirp-3` is a quick round trip check. `gemini-live` needs a websocket
@@ -296,7 +306,8 @@ the tunnel.
 
 - **One minute, 10 MB per request.** LiteLLM uses the synchronous `recognize` method. Longer audio
   has to be split into clips; Chirp 3's `BatchRecognize` is not wired up.
-- **Locations.** Chirp 3 and the Gemini 3.8 TTS models run only in `global`, `us` or `eu`; `eu`
+- **Locations.** Chirp 3, the Gemini 3.8 TTS models and the Gemini chat models run only in
+  `global`, `us` or `eu` (none in `europe-west1`); `eu`
   keeps the data in Europe, and the hub's location exception allows only that. Another location
   needs the exception widened, plus DNS entries (and, for Vertex `rep` names, another regional
   endpoint).
@@ -311,6 +322,11 @@ the tunnel.
   voice names (`Kore`, `Charon`, `Aoede` …) and always return 16-bit 24 kHz WAV, whatever
   `response_format` asks for. Through LiteLLM's `/v1/audio/speech`
   they read the whole input aloud: a lead-in like "Say cheerfully:" is spoken, not obeyed.
+- **Gemini chat models.** Gemini 3.1 Pro is preview and served only in `global`, which has no EU
+  data residency, so it isn't offered. Google retires Gemini versions often: LiteLLM's cost map
+  lists `gemini-3.5-flash` until 19 May 2027 and `gemini-3.5-flash-lite` until 21 July 2027. A
+  newer model is one more entry in `litellm-values.yaml` (same location and credentials), as long
+  as Google serves it in `eu`.
 - **Tunnel down = no speech.** Cluster DNS sends the API names only to the PSC IPs. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
   works that way, since the APIs are public, only the private path is lost.
@@ -334,6 +350,9 @@ Gemini audio is metered at 25 tokens per second, so one minute of audio is 1,500
 | Gemini 3.8 Flash TTS | $0.50 / 1M text-in tokens, $9.00 / 1M audio-out tokens, **doubling to $1.00 / $18.00 on 1 Jan 2027** | ≈ $0.0135 per minute of speech ($0.027 from 2027) |
 | Gemini 3.8 Flash-Lite TTS | $0.50 / 1M text in, $6.00 / 1M audio out, **doubling to $1.00 / $12.00 on 1 Jan 2027** | ≈ $0.009 per minute of speech ($0.018 from 2027) |
 | Gemini Live 2.5 Flash native audio | $3.00 / 1M audio-in tokens, $12.00 / 1M audio-out; text $0.50 in, $2.00 out | transcribing 1 minute ≈ $0.0045 in, plus any spoken reply |
+| Gemini 3.8 Flash (chat) | $0.75 / 1M input tokens, $3.75 / 1M output | a short question ≈ $0.0004 |
+| Gemini 3.5 Flash (chat) | $1.50 / 1M input tokens, $9.00 / 1M output (thinking tokens bill as output) | a short question ≈ $0.0013 |
+| Gemini 3.5 Flash-Lite (chat) | $0.30 / 1M input tokens, $2.50 / 1M output | a short question ≈ $0.00002 |
 | Cloud VPN tunnel (already there, doc 08) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
 | Replies back over the tunnel | internet egress rates (the peer is outside Google) | ≈ $0 at test volume; audio replies are larger than text |
 | STS, IAM Credentials, pool, SA, custom role, location policy, Cloud Router | free | $0 |
@@ -348,8 +367,10 @@ Unconfirmed figures:
   written. The regional endpoint's per-GB rate isn't confirmed either.
 
 LiteLLM loads its cost map from upstream at startup; it lists the Gemini 3.8 TTS models ($9 and
-$6 per 1M audio tokens) and Gemini Live ($3 in, $12 out), matching the rates above. Gemini Live's
-spend is recorded (the two-turn test: $0.00036). The Gemini TTS models show **$0** in
+$6 per 1M audio tokens) and Gemini Live ($3 in, $12 out), matching the rates above. The Gemini
+chat rates are taken from that map alone, not from Google's page. LiteLLM records spend for the
+chat models (a one-sentence answer cost $0.00002 to $0.0013) and for Gemini Live (the two-turn
+test: $0.00036). The Gemini TTS models show **$0** in
 `litellm_spend_metric_total`: LiteLLM 1.98's speech bridge doesn't pass Google's token counts on, so
 their cost appears only in Google billing and Cloud Monitoring.
 
