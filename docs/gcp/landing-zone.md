@@ -123,7 +123,7 @@ cases are described as one architecture in [README.md](README.md).
 
 | Path | What |
 |------|------|
-| [`infra/modules/gcp-hub`](../../infra/modules/gcp-hub) | Interconnect, Cloud Router, Shared VPC / NCC, Cloud DNS |
+| [`infra/modules/gcp-hub`](../../infra/modules/gcp-hub) | Shared VPC host, Interconnect attachments, Cloud Router, default-deny egress firewall; NCC and Cloud DNS forwarding are not in Terraform yet |
 | [`infra/modules/gcp-spoke`](../../infra/modules/gcp-spoke) | Service project attached to the Shared VPC |
 | [`infra/stacks/gcp`](../../infra/stacks/gcp) | Production landing-zone stack (GCS backend, `TODO` values) |
 | [`infra/policy/gcp`](../../infra/policy/gcp) | The Org Policy constraints above |

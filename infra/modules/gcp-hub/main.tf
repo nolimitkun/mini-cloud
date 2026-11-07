@@ -1,5 +1,6 @@
 # GCP Tier-2 cloud hub: Cloud Interconnect + Cloud Router (HA), Shared VPC host,
-# Cloud DNS forwarding, firewall. Private-only: no external IPs (org policy enforced).
+# firewall. Cloud DNS forwarding and NCC are not built yet (doc 05). Private-only: no
+# external IPs (org policy enforced).
 
 terraform {
   required_providers {

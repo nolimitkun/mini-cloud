@@ -27,7 +27,7 @@ Run it after any `terraform apply` and the SVG updates to match. The current out
 ![Live GCP PoC diagram](../diagrams/live-gcp-poc.svg)
 
 It shows every resource Terraform manages (hub VPC, subnets, HA VPN gateway, Cloud Router, tunnel,
-firewalls, the Shared VPC spoke + VM) plus the injected **on-prem** node and its IPsec+BGP link.
+firewalls, PSC endpoints, the Shared VPC spoke subnet, the lakehouse and the speech identities) plus the injected **on-prem** node and its IPsec+BGP link.
 
 ## What "follows any change" can mean — the options
 
