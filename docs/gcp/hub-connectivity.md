@@ -1,6 +1,6 @@
 # Hub Connectivity — LAN as On-Prem over Site-to-Site VPN
 
-← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Hybrid inference](hybrid-ai-inference.md) · [Live diagram](live-diagram.md)
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [AI inference](ai-inference.md) · [Live diagram](live-diagram.md)
 
 > **Where this sits:** the foundation of the [GCP hub-and-spoke](README.md). It builds the hub
 > network (`vpc-poc`), the tunnel and BGP, and attaches the spoke project; every other use case

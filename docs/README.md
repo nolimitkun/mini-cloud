@@ -28,7 +28,7 @@ Read in order:
 |-------|-----------------------------------------------|------|
 | [AWS](aws/README.md) | Transit Gateway, Direct Connect, SCPs | [Site-to-Site VPN](aws/README.md#vpn-poc) (Terraform only) |
 | [Azure](azure/README.md) | Hub VNet, ExpressRoute, Azure Policy | [VPN Gateway](azure/README.md#vpn-poc) (Terraform only) |
-| [GCP](gcp/landing-zone.md) | Shared VPC / NCC, Cloud Interconnect, Org Policy | Running, as [one hub-and-spoke](gcp/README.md): [connectivity](gcp/hub-connectivity.md), [lakehouse](gcp/spoke-lakehouse.md), [speech and Gemini](gcp/hub-ai-services.md), [live diagram](gcp/live-diagram.md); designed: [hybrid AI inference](gcp/hybrid-ai-inference.md) |
+| [GCP](gcp/landing-zone.md) | Shared VPC / NCC, Cloud Interconnect, Org Policy | Running, as [one hub-and-spoke](gcp/README.md): [connectivity](gcp/hub-connectivity.md), [lakehouse](gcp/spoke-lakehouse.md), [AI inference: on-prem and GCP](gcp/ai-inference.md), [live diagram](gcp/live-diagram.md) |
 
 **Diagrams:** the [diagram gallery](diagrams/README.md) has the topology, landing zone, east-west
 inspection, buildout phases, cost breakdown, PoC and lakehouse diagrams. All docs embed them from

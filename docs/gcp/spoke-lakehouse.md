@@ -1,6 +1,6 @@
 # Spoke: Lakehouse — GCS Data Lake + Runtime Catalog
 
-← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Hybrid inference](hybrid-ai-inference.md) · [Live diagram](live-diagram.md)
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [AI inference](ai-inference.md) · [Live diagram](live-diagram.md)
 
 > **Where this sits:** the workload in the spoke project `mini-cloud-lakehouse` of the
 > [GCP hub-and-spoke](README.md). It uses the hub's Shared VPC subnet, guardrails and quota-project
