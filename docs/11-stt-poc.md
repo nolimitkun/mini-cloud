@@ -12,6 +12,7 @@ calling the public internet and without a service-account key. The on-prem side 
 | `gemini-3.8-flash-tts` | `/v1/audio/speech` | Gemini 3.8 Flash TTS | Vertex AI, `eu` multi-region |
 | `gemini-3.8-flash-lite-tts` | `/v1/audio/speech` | Gemini 3.8 Flash-Lite TTS | Vertex AI, `eu` multi-region |
 | `gemini-live` | `/v1/realtime` (websocket) | Gemini Live 2.5 Flash native audio, live transcription | Vertex AI, `europe-west1` |
+| `gemini-4-argon` | `/v1/chat/completions` | Gemini 4 Argon | Vertex AI, `eu` multi-region |
 | `gemini-3.8-flash` | `/v1/chat/completions` | Gemini 3.8 Flash | Vertex AI, `eu` multi-region |
 | `gemini-3.5-flash` | `/v1/chat/completions` | Gemini 3.5 Flash | Vertex AI, `eu` multi-region |
 | `gemini-3.5-flash-lite` | `/v1/chat/completions` | Gemini 3.5 Flash-Lite | Vertex AI, `eu` multi-region |
@@ -36,7 +37,7 @@ client ⇄ LiteLLM   WS /v1/realtime?model=gemini-live   (PCM16 audio in, transc
   ⇄ europe-west1-aiplatform.googleapis.com  (cluster DNS → 10.48.64.2)
   ⇄ Vertex AI BidiGenerateContent, location europe-west1
 
-client → LiteLLM   POST /v1/chat/completions  model=gemini-3.8-flash
+client → LiteLLM   POST /v1/chat/completions  model=gemini-4-argon (or a Gemini 3.x Flash)
   → aiplatform.eu.rep.googleapis.com  → same regional PSC endpoint as Gemini TTS
   → Vertex AI generateContent, location eu
 ```
@@ -322,7 +323,8 @@ the tunnel.
   voice names (`Kore`, `Charon`, `Aoede` …) and always return 16-bit 24 kHz WAV, whatever
   `response_format` asks for. Through LiteLLM's `/v1/audio/speech`
   they read the whole input aloud: a lead-in like "Say cheerfully:" is spoken, not obeyed.
-- **Gemini chat models.** Gemini 3.1 Pro is preview and served only in `global`, which has no EU
+- **Gemini chat models.** Gemini 4 has one model on Vertex AI, `gemini-4-argon` (no Flash or Pro
+  names); its `-cyber-permissive` variant is left out. Gemini 3.1 Pro is preview and served only in `global`, which has no EU
   data residency, so it isn't offered. Google retires Gemini versions often: LiteLLM's cost map
   lists `gemini-3.5-flash` until 19 May 2027 and `gemini-3.5-flash-lite` until 21 July 2027. A
   newer model is one more entry in `litellm-values.yaml` (same location and credentials), as long
@@ -350,6 +352,7 @@ Gemini audio is metered at 25 tokens per second, so one minute of audio is 1,500
 | Gemini 3.8 Flash TTS | $0.50 / 1M text-in tokens, $9.00 / 1M audio-out tokens, **doubling to $1.00 / $18.00 on 1 Jan 2027** | ≈ $0.0135 per minute of speech ($0.027 from 2027) |
 | Gemini 3.8 Flash-Lite TTS | $0.50 / 1M text in, $6.00 / 1M audio out, **doubling to $1.00 / $12.00 on 1 Jan 2027** | ≈ $0.009 per minute of speech ($0.018 from 2027) |
 | Gemini Live 2.5 Flash native audio | $3.00 / 1M audio-in tokens, $12.00 / 1M audio-out; text $0.50 in, $2.00 out | transcribing 1 minute ≈ $0.0045 in, plus any spoken reply |
+| Gemini 4 Argon (chat) | $2.00 / 1M input tokens, $10.00 / 1M output | a short question ≈ $0.0002 |
 | Gemini 3.8 Flash (chat) | $0.75 / 1M input tokens, $3.75 / 1M output | a short question ≈ $0.0004 |
 | Gemini 3.5 Flash (chat) | $1.50 / 1M input tokens, $9.00 / 1M output (thinking tokens bill as output) | a short question ≈ $0.0013 |
 | Gemini 3.5 Flash-Lite (chat) | $0.30 / 1M input tokens, $2.50 / 1M output | a short question ≈ $0.00002 |
