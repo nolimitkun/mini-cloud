@@ -1,55 +1,49 @@
-# Hybrid Multi-Cloud Architecture — Documentation
+# Documentation
 
-A **hybrid, multi-cloud** design where an **on-prem private cloud is the hub** and **AWS, Azure, and
-GCP are spokes**, connected over **private circuits only**, with **no public exposure** of any cloud
-service and **no Internet path** for inter-site traffic.
+The design for the hybrid multi-cloud hub-and-spoke: the on-prem private cloud is the hub, and AWS,
+Azure and GCP are spokes, connected over private circuits only. The
+[project README](../README.md) has the overview, the high-level schema and the cloud comparison.
 
-## Design at a glance
+The docs are split in two:
+- `architecture/` holds the cloud-neutral design that applies to every provider.
+- One folder per cloud holds what is specific to that provider, including the PoCs.
 
-- **Two-tier hub-and-spoke.** Tier 1: on-prem hub ↔ each cloud (spoke). Tier 2: inside each cloud, a
-  landing-zone **cloud hub** ↔ its **workload spokes**.
-- **Dedicated private circuits** per provider — Direct Connect (AWS), ExpressRoute (Azure), Cloud
-  Interconnect (GCP). No public Internet on the data plane.
-- **Private endpoints only** — PrivateLink / Private Endpoint / PSC. No public IPs, IGWs, or public
-  PaaS endpoints anywhere (enforced by guardrails).
-- **Hybrid inspection** — cloud-native firewall per cloud hub for east-west; on-prem NGFW for
-  anything touching on-prem. Cross-cloud traffic hairpins through on-prem (no spoke-to-spoke).
-- **Central control** — one routing domain (ASN 65000), one authoritative private DNS namespace,
-  one IdP, org-level guardrails so new spokes are non-public by default.
+## Shared design (`architecture/`)
 
-## Locked decisions
-
-| # | Decision | Choice |
-|---|----------|--------|
-| D1 | Circuit topology | Dedicated circuits per provider |
-| D2 | Inspection placement | Hybrid (cloud firewalls + on-prem NGFW) |
-| D3 | Region scope | Single region per cloud |
-| D4 | In-cloud hubs | AWS TGW · Azure hub VNet · GCP Shared VPC/NCC |
-
-## Documents
+Read in order:
 
 | # | Doc | Covers |
 |---|-----|--------|
-| 01 | [Architecture specification](01-architecture-specification.md) | Goals, requirements, topology, 2-tier hub-and-spoke, decisions |
-| 02 | [Network design](02-network-design.md) | IPAM/CIDR, BGP/ASN, route tables, east-west, resilience |
-| 03 | [Connectivity buildout](03-connectivity-buildout.md) | Circuit ordering, colo, per-provider gateway build, acceptance |
-| 04 | [Security baseline](04-security-baseline.md) | SCP / Azure Policy / Org Policy guardrails as code |
-| 05 | [DNS design](05-dns-design.md) | Namespace, resolvers, forwarding, split-horizon |
-| 06 | [Buildout runbook](06-buildout-runbook.md) | Phased, checkbox execution plan with gates |
-| 07 | [Cost estimate](07-cost-estimate.md) | Illustrative list-price monthly/annual platform cost |
-| 08 | [PoC — VPN (GCP)](08-poc-vpn.md) | LAN-as-on-prem + strongSwan site-to-site VPN to GCP (overrides D1 for PoC) |
-| 09 | [Live diagram](09-live-diagram.md) | Generated diagram from Terraform state (Inframap + Graphviz), CI refresh |
-| 10 | [Lakehouse PoC (GCP)](10-lakehouse-poc.md) | GCS data lake + BigLake Iceberg REST runtime catalog; open engines + BigQuery via metastore federation |
-| 11 | [Speech services from on-prem](11-stt-poc.md) | Chirp 3 transcription, Chirp 3 HD and Gemini 3.8 TTS voices, Gemini Live transcription, and Gemini 4 Argon and 3.x Flash chat models through on-prem LiteLLM, over the VPN to a PSC endpoint, keyless via workload identity federation |
+| 01 | [Architecture specification](architecture/01-architecture-specification.md) | Goals, requirements, topology, two-tier hub-and-spoke, decisions |
+| 02 | [Network design](architecture/02-network-design.md) | IPAM and CIDR planes, BGP and ASNs, route tables, east-west, resilience |
+| 03 | [Connectivity buildout](architecture/03-connectivity-buildout.md) | Build sequence, colo edge, DNS and endpoints, acceptance tests |
+| 04 | [Security baseline](architecture/04-security-baseline.md) | Control matrix and cross-cutting controls |
+| 05 | [DNS design](architecture/05-dns-design.md) | Namespace, resolvers, forwarding, split-horizon |
+| 06 | [Buildout runbook](architecture/06-buildout-runbook.md) | Phased, checkbox execution plan with gates |
+| 07 | [Cost estimate](architecture/07-cost-estimate.md) | Colo, data transfer, roll-up, scenarios, savings levers |
 
-**Diagrams:** see the [diagram gallery](diagrams/README.md) — topology, landing zone, east-west inspection, buildout phases, cost breakdown, lakehouse architecture (also embedded in the docs above).
+## Per cloud
+
+| Cloud | Landing zone, circuit build, guardrails, cost | PoCs |
+|-------|-----------------------------------------------|------|
+| [AWS](aws/README.md) | Transit Gateway, Direct Connect, SCPs | [Site-to-Site VPN](aws/README.md#vpn-poc) (Terraform only) |
+| [Azure](azure/README.md) | Hub VNet, ExpressRoute, Azure Policy | [VPN Gateway](azure/README.md#vpn-poc) (Terraform only) |
+| [GCP](gcp/README.md) | Shared VPC / NCC, Cloud Interconnect, Org Policy | Running: [VPN](gcp/vpn-poc.md), [lakehouse](gcp/lakehouse-poc.md), [speech and Gemini](gcp/speech-services.md), [live diagram](gcp/live-diagram.md) |
+
+**Diagrams:** the [diagram gallery](diagrams/README.md) has the topology, landing zone, east-west
+inspection, buildout phases, cost breakdown, PoC and lakehouse diagrams. All docs embed them from
+`diagrams/`.
 
 ## Infrastructure as code
 
-The [`../infra`](../infra/README.md) directory holds the Terraform skeleton: per-cloud landing-zone
-modules (`hub` + `spoke` for AWS, Azure, GCP), composition stacks (`stacks/aws|azure|gcp`), and the
-guardrail policies from doc 04. AWS, Azure, and GCP hub+spoke modules are all built out; circuit
-ids, project/subscription ids, and state backends remain as `# TODO` placeholders.
+[`../infra`](../infra/README.md) holds the Terraform:
+- Per-cloud landing-zone modules (`hub` + `spoke` for AWS, Azure and GCP).
+- Composition stacks (`stacks/aws|azure|gcp`).
+- The PoC stacks.
+- The guardrail policies.
+
+Circuit ids, project and subscription ids, and the production state backends are `# TODO`
+placeholders.
 
 ## Open items
 

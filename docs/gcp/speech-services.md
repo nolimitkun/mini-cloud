@@ -79,7 +79,7 @@ aren't set up.
 
 ## How the keyless login works
 
-It's the same federation as the GitHub workflows (doc 09), with Kubernetes as the identity
+It's the same federation as the GitHub workflows ([live diagram](live-diagram.md)), with Kubernetes as the identity
 provider:
 
 1. The kubelet mounts a service-account token into the LiteLLM pod, at
@@ -356,7 +356,7 @@ Gemini audio is metered at 25 tokens per second, so one minute of audio is 1,500
 | Gemini 3.8 Flash (chat) | $0.75 / 1M input tokens, $3.75 / 1M output | a short question ≈ $0.0004 |
 | Gemini 3.5 Flash (chat) | $1.50 / 1M input tokens, $9.00 / 1M output (thinking tokens bill as output) | a short question ≈ $0.0013 |
 | Gemini 3.5 Flash-Lite (chat) | $0.30 / 1M input tokens, $2.50 / 1M output | a short question ≈ $0.00002 |
-| Cloud VPN tunnel (already there, doc 08) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
+| Cloud VPN tunnel (already there, [VPN PoC](vpn-poc.md)) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
 | Replies back over the tunnel | internet egress rates (the peer is outside Google) | ≈ $0 at test volume; audio replies are larger than text |
 | STS, IAM Credentials, pool, SA, custom role, location policy, Cloud Router | free | $0 |
 

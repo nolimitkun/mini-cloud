@@ -28,121 +28,25 @@ subscription / project is non-public by default (Tier-2 landing zone, [01 §3.4]
 
 ## 2. AWS — Service Control Policies (SCP)
 
-Attach at the OU that contains all workload + network accounts.
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "DenyInternetGateways",
-      "Effect": "Deny",
-      "Action": [
-        "ec2:CreateInternetGateway",
-        "ec2:AttachInternetGateway",
-        "ec2:CreateEgressOnlyInternetGateway"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyPublicIPOnLaunch",
-      "Effect": "Deny",
-      "Action": "ec2:RunInstances",
-      "Resource": "arn:aws:ec2:*:*:instance/*",
-      "Condition": { "Bool": { "ec2:AssociatePublicIpAddress": "true" } }
-    },
-    {
-      "Sid": "DenyElasticIPs",
-      "Effect": "Deny",
-      "Action": ["ec2:AllocateAddress", "ec2:AssociateAddress"],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyPublicLoadBalancers",
-      "Effect": "Deny",
-      "Action": "elasticloadbalancing:CreateLoadBalancer",
-      "Resource": "*",
-      "Condition": { "StringEquals": { "elasticloadbalancing:Scheme": "internet-facing" } }
-    },
-    {
-      "Sid": "RestrictRegions",
-      "Effect": "Deny",
-      "NotAction": ["iam:*", "organizations:*", "route53:*", "cloudfront:*", "sts:*"],
-      "Resource": "*",
-      "Condition": { "StringNotEquals": { "aws:RequestedRegion": ["eu-west-1"] } }
-    }
-  ]
-}
-```
-
-Pair with **account-level S3 Block Public Access**, VPC endpoint policies for AWS service access,
-and AWS Config rules (`vpc-no-internet-gateway`, `ec2-instance-no-public-ip`, `s3-bucket-public-read-prohibited`) for detection.
+SCPs at the OU holding every workload and network account: deny internet gateways, public IPs,
+Elastic IPs, internet-facing load balancers, and regions other than `eu-west-1`. Policy body and
+detective rules: [AWS — guardrails](../aws/README.md#guardrails).
 
 ---
 
 ## 3. Azure — Azure Policy (assigned at Management Group)
 
-```json
-{
-  "policyRule": {
-    "if": {
-      "anyOf": [
-        { "field": "type", "equals": "Microsoft.Network/publicIPAddresses" },
-        {
-          "allOf": [
-            { "field": "type", "equals": "Microsoft.Network/networkInterfaces" },
-            { "field": "Microsoft.Network/networkInterfaces/ipConfigurations[*].publicIPAddress.id", "exists": "true" }
-          ]
-        }
-      ]
-    },
-    "then": { "effect": "deny" }
-  }
-}
-```
-
-Add the built-in / custom assignments:
-
-- **Deny public network access on PaaS** — Storage, Key Vault, SQL, Cosmos: `publicNetworkAccess = Disabled`, require **Private Endpoint**.
-- **Allowed locations** — restrict to `westeurope` (`allowedLocations`).
-- **Deny public Standard LB / public App Gateway**.
-- **Audit/deny NSG rules allowing `Internet` inbound/outbound** except via the hub firewall.
-
-Detection: Azure Policy compliance dashboard + Defender for Cloud recommendations.
+Azure Policy at the Management Group: deny public IPs and public PaaS access, require Private
+Endpoints, allow only `westeurope`. Policy body and assignments:
+[Azure — guardrails](../azure/README.md#guardrails).
 
 ---
 
 ## 4. GCP — Organization Policy (at the org / folder)
 
-```yaml
-# Deny external IPs on all VMs
-constraint: constraints/compute.vmExternalIpAccess
-listPolicy:
-  allValues: DENY
-
----
-# Prevent public access to Cloud Storage buckets
-constraint: constraints/storage.publicAccessPrevention
-booleanPolicy:
-  enforced: true
-
----
-# Restrict resource locations to the chosen region
-constraint: constraints/gcp.resourceLocations
-listPolicy:
-  allowedValues:
-    - in:europe-west1-locations
-
----
-# Disable default network (forces explicit, private VPC design)
-constraint: constraints/compute.skipDefaultNetworkCreation
-booleanPolicy:
-  enforced: true
-```
-
-Pair with: **Private Google Access** + **Private Service Connect** for Google APIs, deny external
-forwarding rules, VPC Service Controls perimeter around data services, and Security Command Center
-for detection.
+Org Policy at the org or folder: deny VM external IPs, enforce storage public-access prevention,
+restrict locations to `europe-west1`, skip the default network. Constraints:
+[GCP — guardrails](../gcp/README.md#guardrails).
 
 ---
 

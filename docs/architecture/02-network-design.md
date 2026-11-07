@@ -7,7 +7,7 @@
 
 ## 1. Addressing (IPAM)
 
-![Two-plane IPAM: private 10.0.0.0/8 and cross-cloud 172.16.0.0/12](diagrams/08-ipam-two-plane.svg)
+![Two-plane IPAM: private 10.0.0.0/8 and cross-cloud 172.16.0.0/12](../diagrams/08-ipam-two-plane.svg)
 
 Strict non-overlapping RFC1918, split into **two planes**:
 
@@ -153,7 +153,7 @@ Each cloud advertises **two summaries** to on-prem — its private `/12` and its
 
 ## 4. East-west (cross-cloud) flows
 
-![Cross-cloud east-west hairpins through the on-prem NGFW, inspected three times](diagrams/03-eastwest-inspection.svg)
+![Cross-cloud east-west hairpins through the on-prem NGFW, inspected three times](../diagrams/03-eastwest-inspection.svg)
 
 Cloud-to-cloud traffic is **not** a direct path — there is no spoke-to-spoke and no cloud-to-cloud
 peering. An approved flow (e.g. AWS prod → Azure prod) traverses:

@@ -4,7 +4,7 @@
 **Purpose:** Extend the GCP VPN PoC with a lakehouse stack: GCS storage and the Lakehouse
 Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) access.
 
-> This builds on the shared-VPC spoke from [08-poc-vpn.md](08-poc-vpn.md). The spoke project
+> This builds on the shared-VPC spoke from the [VPN PoC](vpn-poc.md). The spoke project
 > `mini-cloud-lakehouse` was an empty GCS bucket; it now has the Iceberg runtime catalog plus
 > managed folder IAM controlling cross-project feeder/consumer access.
 >
@@ -18,7 +18,7 @@ Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) acc
 ## 1. Architecture
 
 The diagram below is the text version. An interactive HTML version lives in
-[diagrams/gcp-lakehouse-architecture.html](diagrams/gcp-lakehouse-architecture.html); GitHub shows
+[diagrams/gcp-lakehouse-architecture.html](../diagrams/gcp-lakehouse-architecture.html); GitHub shows
 HTML as source, so clone the repo and open that file in a browser.
 
 ```
@@ -353,7 +353,7 @@ To add it back, re-introduce `google_dataplex_lake` + `google_dataplex_zone` (an
 
 ## 8. Related docs
 
-- [08 — PoC VPN (GCP)](08-poc-vpn.md) — the base PoC this builds on
-- [01 — Architecture specification](01-architecture-specification.md) — design goals and decisions
-- [04 — Security baseline](04-security-baseline.md) — org policy guardrails
-- [Architecture diagram (HTML)](diagrams/gcp-lakehouse-architecture.html) — interactive SVG diagram
+- [PoC VPN (GCP)](vpn-poc.md) — the base PoC this builds on
+- [01 — Architecture specification](../architecture/01-architecture-specification.md) — design goals and decisions
+- [04 — Security baseline](../architecture/04-security-baseline.md) — org policy guardrails
+- [Architecture diagram (HTML)](../diagrams/gcp-lakehouse-architecture.html) — interactive SVG diagram

@@ -37,15 +37,15 @@ infra/
 For a cheap proof-of-concept, the `*-vpn-poc` modules + `*-poc` stacks stand up a LAN↔cloud
 **site-to-site VPN** (GCP HA VPN + BGP, AWS Site-to-Site VPN + BGP, Azure route-based VPN + static),
 paired with the on-prem [`onprem/`](onprem/README.md) strongSwan+FRR config. This **overrides
-decision D1** for the PoC only — see [docs/08-poc-vpn.md](../docs/08-poc-vpn.md) (§7.1 for AWS/Azure).
+decision D1** for the PoC only — see [docs/08-poc-vpn.md](../docs/gcp/vpn-poc.md) (§7.1 for AWS/Azure).
 
 ## Conventions
 
 - **One root stack per cloud** (`stacks/aws`, add `stacks/azure`, `stacks/gcp`) — separate state,
   separate provider credentials, no cross-cloud provider in a single apply.
-- CIDRs come from the IPAM plan in [doc 02 §1](../docs/02-network-design.md). Pass supernets in via
+- CIDRs come from the IPAM plan in [doc 02 §1](../docs/architecture/02-network-design.md). Pass supernets in via
   variables; never hardcode in modules.
-- ASN plan ([doc 02 §3](../docs/02-network-design.md)): on-prem `65000`, AWS TGW `65010`, GCP Cloud
+- ASN plan ([doc 02 §3](../docs/architecture/02-network-design.md)): on-prem `65000`, AWS TGW `65010`, GCP Cloud
   Router `65020`, Azure ExpressRoute MS-side fixed `12076`.
 - Guardrails in `policy/` deploy **first**, at the org container, so spokes are non-public by default.
 
