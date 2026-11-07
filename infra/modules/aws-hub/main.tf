@@ -1,5 +1,6 @@
 # AWS Tier-2 cloud hub: Direct Connect Gateway -> Transit Gateway,
-# inspection VPC with Network Firewall, Route 53 Resolver endpoints.
+# inspection VPC with Network Firewall. Transit VIFs and Route 53 Resolver endpoints
+# are TODO stubs below.
 # Private-only: no IGW, no public subnets, no public VIF.
 
 terraform {

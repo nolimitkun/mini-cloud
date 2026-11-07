@@ -43,12 +43,15 @@ circuit termination is in production.
 ```
 
 - **On-prem hub** = the LAN; a Linux box runs **strongSwan** (IPsec) + **FRR** (BGP).
-- **GCP spoke** = a VPC with **both IPAM planes** ([02 §1](../architecture/02-network-design.md)) — a private subnet
+- **GCP hub** = the VPC `vpc-poc` with **both IPAM planes** ([02 §1](../architecture/02-network-design.md)) — a private subnet
   `10.48.0.0/24` and a cross-cloud subnet `192.168.50.0/24` — plus the **HA VPN gateway**, **Cloud
-  Router**, and a test VM with no external IP.
+  Router**, and optional test VMs with no external IP.
 - **Routing:** BGP over the tunnel (link-local `169.254.0.0/30`). On-prem advertises its LAN
-  `192.168.1.0/24`; GCP advertises both its subnets — private `10.48.0.0/24` and cross-cloud
-  `192.168.50.0/24`. Both GCP planes are learned and reachable from on-prem.
+  `192.168.1.0/24`. GCP advertises the VPC's subnets: private `10.48.0.0/24` and cross-cloud
+  `192.168.50.0/24`, plus, when they exist, the Shared VPC spoke subnet and the PSC endpoint subnet.
+  Once the PSC endpoint for Google APIs exists (the speech use case, on by default) or a spoke is
+  peered, the router switches to `CUSTOM` mode: all subnets plus `10.48.64.2/32` and any peered
+  spoke range.
 
 ---
 
@@ -73,7 +76,7 @@ circuit termination is in production.
 - A Linux host on the LAN with a **reachable public IP**. Since on-prem **initiates** the tunnel
   (`start_action=start`) over NAT-T (UDP 4500), it works through a home router **without inbound
   port-forwarding** — the router's outbound NAT keeps the session open.
-- Packages on the strongSwan host: `strongswan-swanctl` (or `strongswan`), `frr`.
+- Packages on the strongSwan host: `strongswan-swanctl` (or `strongswan`), `frr`, `nftables`.
 - IP forwarding enabled: `net.ipv4.ip_forward=1`.
 
 ### 4.1 Dynamic public IP (e.g. Orange Livebox)
@@ -114,6 +117,11 @@ terraform output                                # note: vpn_gateway_ip, bgp_gcp_
 This creates the VPC + private and cross-cloud subnets, HA VPN gateway, external peer gateway (your on-prem IP), Cloud Router
 with the BGP peer, the tunnel, and firewall rules (LAN CIDR + IAP). Test VMs are optional and disabled by default.
 
+`enable_stt` defaults to `true`, so the same apply also builds the speech use case (PSC endpoints,
+identity pool, `litellm-stt`, the `eu` location exception). That needs the cluster's
+`onprem-k8s-jwks.json` and org-policy rights: set `enable_stt = false` for a network-only apply. The
+spoke and lakehouse come only with `enable_spoke = true` (§6.1).
+
 ### 5.2 On-prem side (strongSwan + FRR)
 
 Configs live in [`infra/onprem/`](../../infra/onprem/README.md). Substitute the Terraform outputs:
@@ -127,7 +135,8 @@ sudo cp infra/onprem/strongswan/swanctl.conf /etc/swanctl/swanctl.conf
 sudo swanctl --load-all
 
 # 2. Routed IPsec interface (XFRM if_id 42) + BGP link-local IP
-sudo infra/onprem/strongswan/ipsec-xfrm.sh         # creates ipsec0 on the default-route NIC, adds 169.254.0.2/30
+sudo infra/onprem/strongswan/ipsec-xfrm.sh         # creates ipsec0 on the default-route NIC, adds 169.254.0.2/30,
+                                                   # and an nftables rule so tunnel traffic leaves with the LAN address
 
 # 3. BGP — edit neighbor/network in infra/onprem/frr/bgpd.conf, then:
 sudo cp infra/onprem/frr/bgpd.conf /etc/frr/bgpd.conf

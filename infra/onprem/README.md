@@ -52,7 +52,7 @@ Two things break the tunnel without any config change:
   replaced) and asks before applying, syncs the `GCP_POC_TFVARS` secret for the CI plan job,
   updates the strongSwan local id, and recreates `ipsec0` if it's missing.
 - **Recreated Kubernetes cluster** (`minikube delete`, `deploy-minikube.sh --reset`). New
-  service-account signing keys mean GCP rejects LiteLLM's token for the chirp-3 model. Run
+  service-account signing keys mean GCP rejects LiteLLM's token for every Google model. Run
   `bash refresh-k8s-jwks.sh` and commit `onprem-k8s-jwks.json` (docs/gcp/hub-ai-services.md).
 
 ## Verify
@@ -66,13 +66,15 @@ ping <test_vm_internal_ip>              # data plane over the tunnel
 
 ## Notes
 
-- **Behind NAT:** forward UDP 500 + 4500 to this host; use the public/NAT IP as `local id` and as
-  `onprem_public_ip` in the cloud tfvars. NAT-T is automatic.
+- **Behind NAT:** use the public/NAT IP as `local id` and as `onprem_public_ip` in the cloud tfvars.
+  NAT-T is automatic, and since this host starts the tunnel (`start_action = start`), no port
+  forwarding is needed; forward UDP 500 + 4500 only if GCP must be able to start it.
 - **Source address:** routes learned over BGP point at `ipsec0`, whose own address is the
   link-local `169.254.0.2`, and GCP can't route replies to it. `ipsec-xfrm.sh` adds an nftables
   rule (table `mini_cloud_vpn`) that rewrites that source to this host's LAN address, which BGP
   does advertise. BGP itself keeps the link-local address. Set `LAN_IP` to override the address.
   Hosts set up before this rule need `sudo apt-get install -y nftables` once.
-- **Reach from other LAN hosts:** either add a route for `10.48.0.0/24` via this host on the LAN
-  gateway, or test directly from this host.
+- **Reach from other LAN hosts:** either add a route for the GCP ranges (`10.48.0.0/12`, and
+  `192.168.50.0/24` for the cross-cloud plane) via this host on the LAN gateway, or test directly
+  from this host.
 - These files contain `<PLACEHOLDERS>` and a sample PSK — never commit a real pre-shared key.

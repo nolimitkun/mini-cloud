@@ -57,7 +57,7 @@ HTML as source, so clone the repo and open that file in a browser.
 
 | Layer | Resource | Role | In query path? |
 |---|---|---|---|
-| **Lakehouse Runtime Catalog** | `google_biglake_iceberg_catalog` (native, provider ≥ 7.15) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
+| **Lakehouse Runtime Catalog** | `google_biglake_iceberg_catalog` (native; the module pins provider ≥ 7.20) | Operational: serves Iceberg REST API to Spark/Trino/Flink/PyIceberg, vends GCS credentials | **Yes** — hot path |
 
 The runtime catalog is the only catalog: it lets open-source engines discover and read Iceberg
 tables directly. We removed the earlier BigLake connection + `lakehouse_catalog` dataset — but note
@@ -134,13 +134,18 @@ lakehouse_datasets = {
 
 Consumers (Spark, Trino, Flink, Python) query via the Iceberg REST Catalog:
 
-```java
-// Spark config
-spark.sql.catalog.lakehouse = org.apache.iceberg.spark.SparkCatalog
-spark.sql.catalog.lakehouse.catalog-impl = org.apache.iceberg.rest.RESTCatalog
-spark.sql.catalog.lakehouse.uri = https://biglake.googleapis.com/iceberg/v1/restcatalog/extensions/projects/mini-cloud-lakehouse/catalogs/mini-cloud-lakehouse-data
-spark.sql.catalog.lakehouse.credential = vended-credentials
 ```
+spark.sql.catalog.lakehouse                 org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.lakehouse.type            rest
+spark.sql.catalog.lakehouse.uri             https://biglake.googleapis.com/iceberg/v1/restcatalog
+spark.sql.catalog.lakehouse.warehouse       gs://mini-cloud-lakehouse-data
+spark.sql.catalog.lakehouse.header.x-goog-user-project        mini-cloud-lakehouse
+spark.sql.catalog.lakehouse.header.X-Iceberg-Access-Delegation  vended-credentials
+```
+
+These are the settings the seeder uses through PyIceberg
+([`scripts/README.md`](../../infra/stacks/gcp-poc/scripts/README.md)), plus a Google access token as
+bearer. The `X-Iceberg-Access-Delegation` header is what makes the catalog vend credentials.
 
 The catalog SA (`blirc-...`) vends downscoped GCS tokens. The engine does not
 need its own GCS service account key.
@@ -246,7 +251,7 @@ catalog (same as the bucket), `logs` the namespace, `events` the table.
 
 ## 4. Iceberg catalog (native Terraform resource)
 
-The catalog is the native `google_biglake_iceberg_catalog` resource (provider ≥ 7.15):
+The catalog is the native `google_biglake_iceberg_catalog` resource (the module pins provider ≥ 7.20):
 
 ```hcl
 resource "google_biglake_iceberg_catalog" "runtime" {

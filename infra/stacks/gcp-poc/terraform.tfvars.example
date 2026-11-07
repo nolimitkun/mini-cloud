@@ -7,6 +7,12 @@ shared_secret    = "CHANGE-ME-long-random-psk" # TODO: also set in strongSwan se
 
 # region = "europe-west1"  # default
 
+# Use cases (see docs/gcp/README.md). enable_stt defaults to true and needs
+# onprem-k8s-jwks.json plus org-policy rights; set false for a network-only apply.
+# enable_stt   = false
+# enable_spoke = true          # spoke project; the lakehouse comes with it
+# spoke_mode   = "shared_vpc"  # needs org_id; default "peering"
+
 # Optional: also deploy a test VM in the cross-cloud subnet (192.168.50.0/24)
 # to ping a cross-cloud-plane address from on-prem and prove the cross-cloud plane.
 # enable_crosscloud_test_vm = true

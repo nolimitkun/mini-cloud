@@ -127,7 +127,7 @@ address. PoC VNet `10.32.0.0/24`.
 
 | Path | What |
 |------|------|
-| [`infra/modules/azure-hub`](../../infra/modules/azure-hub) | ExpressRoute Gateway, hub VNet, Azure Firewall, Private DNS Resolver |
+| [`infra/modules/azure-hub`](../../infra/modules/azure-hub) | ExpressRoute Gateway, hub VNet, Azure Firewall (rule collections `TODO`), Private DNS Resolver with an inbound endpoint only |
 | [`infra/modules/azure-spoke`](../../infra/modules/azure-spoke) | Workload VNet peered to the hub |
 | [`infra/stacks/azure`](../../infra/stacks/azure) | Production landing-zone stack (azurerm backend, `TODO` values) |
 | [`infra/modules/azure-vpn-poc`](../../infra/modules/azure-vpn-poc), [`infra/stacks/azure-poc`](../../infra/stacks/azure-poc) | VPN PoC |

@@ -150,7 +150,7 @@ public address. PoC VPC `10.16.0.0/24`.
 
 | Path | What |
 |------|------|
-| [`infra/modules/aws-hub`](../../infra/modules/aws-hub) | Direct Connect Gateway, TGW, Network Firewall, Route 53 Resolver |
+| [`infra/modules/aws-hub`](../../infra/modules/aws-hub) | Direct Connect Gateway, TGW, inspection VPC with Network Firewall; transit VIFs and Route 53 Resolver endpoints are still `TODO` |
 | [`infra/modules/aws-spoke`](../../infra/modules/aws-spoke) | Workload VPC attached to the TGW, default route → firewall |
 | [`infra/stacks/aws`](../../infra/stacks/aws) | Production landing-zone stack (S3 backend, `TODO` values) |
 | [`infra/policy/aws`](../../infra/policy/aws) | The SCPs above |

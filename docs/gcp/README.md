@@ -196,10 +196,10 @@ $3,520 a month for GCP ([landing-zone.md](landing-zone.md#cost)).
 | 2 | Hub network and tunnel | `infra/stacks/gcp-poc`, base variables: [hub-connectivity.md §5](hub-connectivity.md#5-build-steps) |
 | 3 | On-prem strongSwan + FRR; check BGP | [hub-connectivity.md §6](hub-connectivity.md#6-verification) |
 | 4 | Spoke: `enable_spoke = true`, `spoke_mode = "shared_vpc"` | [hub-connectivity.md §6.1](hub-connectivity.md#61-gcp-hub-and-spoke-optional) |
-| 5 | Lakehouse: `enable_lakehouse = true`, then `make seed-lakehouse` | [spoke-lakehouse.md §5](spoke-lakehouse.md#5-deploy-order) |
-| 6 | Speech and Gemini: `enable_stt = true`, then cluster DNS and the LiteLLM models | [hub-ai-services.md](hub-ai-services.md#bring-up) |
+| 5 | Lakehouse: comes with the spoke (`enable_lakehouse` defaults to `true`), then `make seed-lakehouse` | [spoke-lakehouse.md §5](spoke-lakehouse.md#5-deploy-order) |
+| 6 | Speech and Gemini: `enable_stt` defaults to `true` (so step 2 already builds it), then cluster DNS and the LiteLLM models | [hub-ai-services.md](hub-ai-services.md#bring-up) |
 
-Steps 4–6 are independent toggles on the same stack. `make apply-poc` applies it and refreshes the
+Steps 4–6 are toggles on the same stack; set `enable_stt = false` for a network-only first apply. `make apply-poc` applies it and refreshes the
 live diagram.
 
 ---
