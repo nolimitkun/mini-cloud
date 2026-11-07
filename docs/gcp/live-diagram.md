@@ -1,6 +1,6 @@
 # Live (Dynamic) Diagram
 
-The hand-drawn diagrams in [`diagrams/`](diagrams/README.md) explain the *design*. This page covers a
+The hand-drawn diagrams in [`diagrams/`](../diagrams/README.md) explain the *design*. This page covers a
 **generated** diagram that reflects the **actual deployed resources** and is regenerated on every
 change — so it follows the infrastructure rather than the intent.
 
@@ -19,7 +19,7 @@ make diagram DIAGRAM_STACK=stacks/aws     # any other stack
 
 Run it after any `terraform apply` and the SVG updates to match. The current output:
 
-![Live GCP PoC diagram](diagrams/live-gcp-poc.svg)
+![Live GCP PoC diagram](../diagrams/live-gcp-poc.svg)
 
 It shows every resource Terraform manages (hub VPC, subnets, HA VPN gateway, Cloud Router, tunnel,
 firewalls, the Shared VPC spoke + VM) plus the injected **on-prem** node and its IPsec+BGP link.
@@ -52,7 +52,7 @@ This keeps the committed `live-gcp-poc.svg` in lockstep with the deployed resour
 diagram refresh in one step.
 
 **CI-on-push (enabled):** the gcp-poc stack now uses a **GCS remote backend**
-(`gs://mini-cloud-499820-tfstate`), so [`.github/workflows/diagram.yml`](../.github/workflows/diagram.yml)
+(`gs://mini-cloud-499820-tfstate`), so [`.github/workflows/diagram.yml`](../../.github/workflows/diagram.yml)
 regenerates the SVG on every change to `infra/**` and commits it back:
 
 1. pulls the state from GCS, runs Inframap + Graphviz, writes `docs/diagrams/live-gcp-poc.svg`;
@@ -60,7 +60,7 @@ regenerates the SVG on every change to `infra/**` and commits it back:
 
 **Auth (no keys):** the job signs in through Workload Identity Federation as `tf-diagram-ci`, which
 only has **Storage Object Viewer** on the state bucket (read is enough — the diagram only pulls
-state). [`infra/ci/setup-plan-identity.sh`](../infra/ci/setup-plan-identity.sh) creates the `github`
+state). [`infra/ci/setup-plan-identity.sh`](../../infra/ci/setup-plan-identity.sh) creates the `github`
 pool and binds the SA to this repository. It runs on pushes to `main` and manual dispatch only, never
 on PRs.
 

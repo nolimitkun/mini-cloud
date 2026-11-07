@@ -71,7 +71,7 @@ Internet, and no traffic between sites traverses the public Internet.
 
 ### 3.1 Topology
 
-![Tier-1 hub-and-spoke: on-prem hub, colocation edge, AWS/Azure/GCP spokes](diagrams/01-tier1-hub-and-spoke.svg)
+![Tier-1 hub-and-spoke: on-prem hub, colocation edge, AWS/Azure/GCP spokes](../diagrams/01-tier1-hub-and-spoke.svg)
 
 ```
                          ┌─────────────────────────────┐
@@ -116,7 +116,7 @@ Internet, and no traffic between sites traverses the public Internet.
 
 ### 3.4 Two-tier (nested) hub-and-spoke — cloud landing zones
 
-![Per-cloud landing zone: a cloud hub with prod, non-prod and shared workload spokes](diagrams/02-landing-zone-nested.svg)
+![Per-cloud landing zone: a cloud hub with prod, non-prod and shared workload spokes](../diagrams/02-landing-zone-nested.svg)
 
 The topology is hub-and-spoke at **two levels**:
 
@@ -157,7 +157,7 @@ directly — all transit and inspection passes through the cloud hub.
 
 ### 4.1 IP Address Management (IPAM)
 
-- Single authoritative IPAM, split into **two planes** (see [02 §1](../docs/02-network-design.md) for the full plan):
+- Single authoritative IPAM, split into **two planes** (see [02 §1](02-network-design.md) for the full plan):
   - **Private plane** `10.0.0.0/8` — intra-cloud + on-prem; never advertised cloud-to-cloud:
     - On-prem `10.0.0.0/12` · AWS `10.16.0.0/12` · Azure `10.32.0.0/12` · GCP `10.48.0.0/12` · reserve/PaaS `10.64.0.0/12`
   - **Cross-cloud plane** `172.16.0.0/12` — only subnets approved for spoke-to-spoke flows; all cross-cloud routes/rules scope to this range:

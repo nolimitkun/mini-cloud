@@ -1,7 +1,7 @@
 # Azure VPN PoC: route-based VPN Gateway to an on-prem strongSwan peer.
 # Static routing (on-prem LAN as the local network gateway address space) keeps the
 # PoC simple — Azure BGP-over-VPN uses APIPA peers and can be added later.
-# Matches the GCP PoC pattern (doc 08).
+# Matches the GCP PoC pattern (docs/gcp/vpn-poc.md).
 
 terraform {
   required_providers {

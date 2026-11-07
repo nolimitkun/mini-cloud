@@ -1,6 +1,6 @@
 # AWS VPN PoC: Site-to-Site VPN (VGW) to an on-prem strongSwan peer, dynamic BGP.
 # AWS provisions TWO tunnels (two outside IPs, two inside /30s) automatically.
-# Private VPC, no IGW. Matches the GCP PoC pattern (doc 08).
+# Private VPC, no IGW. Matches the GCP PoC pattern (docs/gcp/vpn-poc.md).
 
 terraform {
   required_providers {

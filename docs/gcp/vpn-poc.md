@@ -5,7 +5,7 @@
 on-prem hub** and an **IPsec VPN over the public Internet** instead of a dedicated circuit.
 
 > This **overrides decision D1** *for the PoC only*. Dedicated Direct Connect / ExpressRoute /
-> Cloud Interconnect ([01 §7](01-architecture-specification.md)) are replaced by managed cloud VPN
+> Cloud Interconnect ([01 §7](../architecture/01-architecture-specification.md)) are replaced by managed cloud VPN
 > gateways + on-prem strongSwan. Everything else — hub-and-spoke, BGP (ASN 65000↔65020), private
 > workloads, no public service exposure — is preserved so the PoC validates the real design.
 
@@ -23,7 +23,7 @@ circuit termination is in production.
 
 ## 2. Topology
 
-![PoC detail: LAN strongSwan/FRR host over IPsec+BGP to GCP HA VPN, Cloud Router and a private test VM](diagrams/06-poc-vpn-detail.svg)
+![PoC detail: LAN strongSwan/FRR host over IPsec+BGP to GCP HA VPN, Cloud Router and a private test VM](../diagrams/06-poc-vpn-detail.svg)
 
 ```
    LAN 192.168.1.0/24                          GCP VPC 10.48.0.0/24 (hub)
@@ -37,7 +37,7 @@ circuit termination is in production.
 ```
 
 - **On-prem hub** = the LAN; a Linux box runs **strongSwan** (IPsec) + **FRR** (BGP).
-- **GCP spoke** = a VPC with **both IPAM planes** ([02 §1](02-network-design.md)) — a private subnet
+- **GCP spoke** = a VPC with **both IPAM planes** ([02 §1](../architecture/02-network-design.md)) — a private subnet
   `10.48.0.0/24` and a cross-cloud subnet `192.168.50.0/24` — plus the **HA VPN gateway**, **Cloud
   Router**, and a test VM with no external IP.
 - **Routing:** BGP over the tunnel (link-local `169.254.0.0/30`). On-prem advertises its LAN
@@ -77,7 +77,7 @@ GCP matches the peer by source IP), so the IP must be stable while the tunnel is
 (Orange Livebox, etc.) hand out **dynamic** IPs that change on router reboot / line resync.
 
 If it changes, the tunnel drops (GCP shows `NO_INCOMING_PACKETS`, BGP `DOWN`). Re-point both sides
-with one command — [`refresh-ip.sh`](../infra/onprem/refresh-ip.sh) detects the new IP, shows the
+with one command — [`refresh-ip.sh`](../../infra/onprem/refresh-ip.sh) detects the new IP, shows the
 Terraform plan (the external gateway and tunnel are replaced) and asks before applying, syncs the
 `GCP_POC_TFVARS` secret used by the CI plan job, then updates + restarts strongSwan and recreates
 `ipsec0` if it's missing:
@@ -87,7 +87,7 @@ bash infra/onprem/refresh-ip.sh        # run as your normal user (sudo used inte
 ```
 
 A reboot drops the tunnel too: nothing reloads `swanctl.conf` or recreates `ipsec0`. Install the boot
-unit once with `sudo infra/onprem/install-boot-unit.sh` (see [infra/onprem](../infra/onprem/README.md)).
+unit once with `sudo infra/onprem/install-boot-unit.sh` (see [infra/onprem](../../infra/onprem/README.md)).
 For anything beyond a PoC, use a static IP (ISP Pro offer) or a DDNS-triggered job calling
 `refresh-ip.sh --yes`.
 
@@ -110,7 +110,7 @@ with the BGP peer, the tunnel, and firewall rules (LAN CIDR + IAP). Test VMs are
 
 ### 5.2 On-prem side (strongSwan + FRR)
 
-Configs live in [`infra/onprem/`](../infra/onprem/README.md). Substitute the Terraform outputs:
+Configs live in [`infra/onprem/`](../../infra/onprem/README.md). Substitute the Terraform outputs:
 
 ```bash
 # 1. IPsec — edit infra/onprem/strongswan/swanctl.conf:
@@ -135,7 +135,7 @@ sudo systemctl restart frr
 
 The tunnel and BGP come up in this order (what each check below confirms):
 
-![Bring-up sequence: IKEv2 → CHILD_SA/ESP → BGP → data plane](diagrams/07-poc-bringup-sequence.svg)
+![Bring-up sequence: IKEv2 → CHILD_SA/ESP → BGP → data plane](../diagrams/07-poc-bringup-sequence.svg)
 
 | Check | Command | Expect |
 |-------|---------|--------|
@@ -172,7 +172,7 @@ production Tier-2 hub-and-spoke. Standalone projects (no org) can't use Shared V
   reaches the spoke VM via tunnel → hub → peering. The spoke learns on-prem routes back over peering.
 - Spoke VM `lakehouse-test-vm` has **no external IP**; reachable only over the tunnel.
 
-Enable it ([`stacks/gcp-poc`](../infra/stacks/gcp-poc)):
+Enable it ([`stacks/gcp-poc`](../../infra/stacks/gcp-poc)):
 
 ```hcl
 # terraform.tfvars
@@ -181,7 +181,7 @@ billing_account = "<your-billing-account-id>"
 spoke_mode      = "peering"   # no org needed
 ```
 
-**With a GCP organization** (see [doc 04](04-security-baseline.md)) you can instead use **Shared VPC**
+**With a GCP organization** (see [doc 04](../architecture/04-security-baseline.md)) you can instead use **Shared VPC**
 (the production model) and enforce **Org Policy** guardrails:
 
 ```hcl
@@ -190,13 +190,13 @@ org_id     = "<org-id>"       # needs roles/compute.xpnAdmin on the org
 ```
 - `spoke_mode = shared_vpc` puts the spoke subnet **in the hub VPC** (no peering); the Cloud Router
   advertises it natively.
-- Apply [`infra/policy/gcp`](../infra/policy/gcp) (needs `roles/orgpolicy.policyAdmin`) to enforce
+- Apply [`infra/policy/gcp`](../../infra/policy/gcp) (needs `roles/orgpolicy.policyAdmin`) to enforce
   deny-external-IP, region-lock, storage public-access-prevention, skip-default-network org-wide.
 
 Verified E2E in both modes: `ping 10.48.16.2` from the LAN succeeds
 (on-prem → tunnel → hub → peering **or** Shared VPC → spoke VM). The Shared-VPC spoke's test VM has
 since been removed — the subnet stays ready for workloads, and the spoke now hosts the
-**lakehouse** (GCS + Iceberg runtime catalog): see [doc 10](10-lakehouse-poc.md).
+**lakehouse** (GCS + Iceberg runtime catalog): see the [lakehouse PoC](lakehouse-poc.md).
 
 ---
 
@@ -205,41 +205,19 @@ since been removed — the subnet stays ready for workloads, and the spoke now h
 | PoC | Production target |
 |-----|-------------------|
 | IPsec VPN over Internet | Dedicated circuit (D1) — swap the transport, keep BGP |
-| Single tunnel (no SLA) | HA VPN dual tunnels / dual circuits ([06](06-buildout-runbook.md)) |
-| LAN box (strongSwan+FRR) | Colo edge routers ([03 §2](03-connectivity-buildout.md)) |
+| Single tunnel (no SLA) | HA VPN dual tunnels / dual circuits ([06](../architecture/06-buildout-runbook.md)) |
+| LAN box (strongSwan+FRR) | Colo edge routers ([03 §2](../architecture/03-connectivity-buildout.md)) |
 | One cloud (GCP) | Replicate pattern to AWS (Site-to-Site VPN→TGW) and Azure (VPN Gateway→hub VNet) |
-| Org guardrails optional | Apply `policy/` before workloads ([04](04-security-baseline.md)) |
+| Org guardrails optional | Apply `policy/` before workloads ([04](../architecture/04-security-baseline.md)) |
 
 The BGP design, CIDR plan, and hub-and-spoke routing carry over unchanged — only the **transport**
 (VPN → circuit) and **redundancy** (single → dual) change.
 
 ### 7.1 PoC variants for AWS and Azure
 
-The same LAN-as-on-prem pattern is replicated for the other two clouds — same on-prem strongSwan
-host, additional tunnels:
-
-| Cloud | Stack | Cloud-side construct | Routing |
-|-------|-------|----------------------|---------|
-| GCP | [`stacks/gcp-poc`](../infra/stacks/gcp-poc) | HA VPN gateway + Cloud Router | BGP `65000↔65020` |
-| AWS | [`stacks/aws-poc`](../infra/stacks/aws-poc) | Site-to-Site VPN (VGW) — **2 tunnels** | BGP `65000↔65010` (dynamic) |
-| Azure | [`stacks/azure-poc`](../infra/stacks/azure-poc) | Route-based VPN Gateway (VpnGw1) | **static** (LAN as local network gateway) |
-
-Each is private (no IGW / no public IP on workloads); the VPN gateway public IP is the only exposed
-endpoint, as in §1. CIDRs follow the IPAM plan: AWS `10.16.0.0/24`, Azure `10.32.0.0/24`.
-
-**On-prem deltas (strongSwan + FRR):**
-
-- Add one `connections {}` block per tunnel in `swanctl.conf`, each with its own remote peer IP,
-  PSK, and a **distinct `if_id`** → its own XFRM interface (`ipsec0`=GCP/42, `ipsec1`/`ipsec2`=AWS
-  tunnels/43-44, `ipsec3`=Azure/45). Run `ipsec-xfrm.sh` once per `if_id`.
-- AWS hands back two tunnels with assigned inside `/30`s — read `terraform output` for
-  `tunnel1_cgw_inside_address` / `tunnel1_vgw_inside_address` and add an FRR `neighbor` (remote-as
-  `65010`) per tunnel, peering the VGW inside address.
-- Azure uses static routing in this PoC (no FRR neighbor) — just a route for `10.32.0.0/24` via its
-  XFRM interface. BGP-over-VPN (APIPA peers) can be added later to match the GCP/AWS path.
-
-> AWS/Azure VPN gateways take time to provision (Azure VPN Gateway ~20–45 min). Bring up one cloud
-> at a time and verify with the §6 sequence before adding the next.
+The same LAN-as-on-prem pattern is replicated for the other two clouds, with more tunnels on the same
+strongSwan host: see [AWS — VPN PoC](../aws/README.md#vpn-poc) and
+[Azure — VPN PoC](../azure/README.md#vpn-poc).
 
 ---
 
@@ -259,7 +237,7 @@ reuses the existing LAN host and internet connection.
 
 Notes:
 
-- **vs. the production circuit design** (~$3,520/mo GCP fixed, [07 §2.3](07-cost-estimate.md)), the
+- **vs. the production circuit design** (~$3,520/mo GCP fixed, [GCP cost](README.md#cost)), the
   VPN PoC is **~1–2%** of the cost — the whole point of using VPN for the PoC.
 - **Tear it down between sessions** ([§9 teardown](#9-teardown)) → recurring cost drops to ~$0.
 - **No free-tier VM in Europe:** GCP's always-free `e2-micro` exists only in `us-central1` /
@@ -278,4 +256,4 @@ sudo swanctl --terminate --ike gcp ; sudo ip link del ipsec0
 ```
 
 VPN data transfer (egress) is billed per GB; tearing down the PoC stops all recurring charge except
-trivial idle. See [07 §4](07-cost-estimate.md) — a VPN PoC is a tiny fraction of the circuit-based estimate.
+trivial idle. See [07 §4](../architecture/07-cost-estimate.md) — a VPN PoC is a tiny fraction of the circuit-based estimate.
