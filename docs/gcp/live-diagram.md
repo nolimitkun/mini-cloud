@@ -1,6 +1,6 @@
 # Live (Dynamic) Diagram
 
-← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Hybrid inference](hybrid-ai-inference.md) · [Live diagram](live-diagram.md)
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [AI inference](ai-inference.md) · [Live diagram](live-diagram.md)
 
 > **Where this sits:** tooling for the [GCP hub-and-spoke](README.md). It draws everything in the
 > `infra/stacks/gcp-poc` state, hub and spoke together.

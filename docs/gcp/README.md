@@ -113,9 +113,9 @@ These hub pieces serve every use case. A new use case should reuse them rather t
 | Service | What it gives | Built in |
 |---------|---------------|----------|
 | **Tunnel** | IPsec + BGP between the LAN and `vpc-poc`; spokes reachable through the hub | [hub-connectivity.md](hub-connectivity.md) |
-| **Private Google APIs** | `all-apis` PSC endpoint for `*.googleapis.com`, plus a regional endpoint for two-level names such as `aiplatform.eu.rep.googleapis.com`; GCP VMs use Private Google Access | [hub-ai-services.md](hub-ai-services.md#pieces) |
-| **Private DNS (on-prem)** | `scripts/gcp-psc-dns.sh` in mini-platform-deployment pins the Google API names used on-prem to the PSC IPs in cluster DNS | [hub-ai-services.md](hub-ai-services.md#bring-up) |
-| **Keyless identity** | Workload identity federation: pool `onprem-k8s` trusts one Kubernetes service account; pool `github` lets the CI plan and live-diagram jobs act as `tf-plan-ci` and `tf-diagram-ci`. No use case holds a service-account key. | [hub-ai-services.md](hub-ai-services.md#how-the-keyless-login-works), [live-diagram.md](live-diagram.md) |
+| **Private Google APIs** | `all-apis` PSC endpoint for `*.googleapis.com`, plus a regional endpoint for two-level names such as `aiplatform.eu.rep.googleapis.com`; GCP VMs use Private Google Access | [ai-inference.md](ai-inference.md#pieces) |
+| **Private DNS (on-prem)** | `scripts/gcp-psc-dns.sh` in mini-platform-deployment pins the Google API names used on-prem to the PSC IPs in cluster DNS | [ai-inference.md](ai-inference.md#bring-up) |
+| **Keyless identity** | Workload identity federation: pool `onprem-k8s` trusts one Kubernetes service account; pool `github` lets the CI plan and live-diagram jobs act as `tf-plan-ci` and `tf-diagram-ci`. No use case holds a service-account key. | [ai-inference.md](ai-inference.md#how-the-keyless-login-works), [live-diagram.md](live-diagram.md) |
 | **Guardrails** | Org policies from [`infra/policy/gcp`](../../infra/policy/gcp): no external IPs, region lock, storage public-access prevention, no default network | [landing-zone.md](landing-zone.md#guardrails) |
 | **Quota project** | Cross-project callers bill API usage to the project they name in `x-goog-user-project`, which needs `serviceusage.serviceUsageConsumer` | [spoke-lakehouse.md](spoke-lakehouse.md#cross-project-callers--the-quota-project) |
 | **State and diagram** | GCS state bucket in the hub; the CI plan job and the live diagram read it keylessly | [live-diagram.md](live-diagram.md) |
@@ -128,8 +128,7 @@ These hub pieces serve every use case. A new use case should reuse them rather t
 |----------|---------|------|-----|
 | **Hybrid connectivity**: the LAN as on-prem hub over IPsec + BGP | hub | (it is the foundation) | [hub-connectivity.md](hub-connectivity.md) |
 | **Lakehouse**: GCS data lake + Iceberg REST catalog, BigQuery through federation | spoke | Shared VPC subnet, guardrails, quota project | [spoke-lakehouse.md](spoke-lakehouse.md) |
-| **Speech and Gemini from on-prem**: Chirp 3, Cloud TTS, Gemini TTS, Gemini Live and Gemini chat as LiteLLM models | hub (APIs, SA, endpoints) | Tunnel, both PSC endpoints, on-prem DNS, `onprem-k8s` pool, `eu` location exception | [hub-ai-services.md](hub-ai-services.md) |
-| **Hybrid AI inference** (design): on-prem vLLM and GCP models behind one gateway, placed by data class, chosen by benchmark | on-prem + hub | Tunnel, PSC endpoints, `onprem-k8s` pool, `eu` exception | [hybrid-ai-inference.md](hybrid-ai-inference.md) |
+| **AI inference**: one LiteLLM gateway in front of on-prem vLLM and Google's speech and Gemini models (Chirp 3, Cloud TTS, Gemini TTS, Gemini Live, Gemini chat), placed by data class (design) and chosen by benchmark (design) | on-prem + hub (APIs, SA, endpoints) | Tunnel, both PSC endpoints, on-prem DNS, `onprem-k8s` pool, `eu` location exception | [ai-inference.md](ai-inference.md) |
 | **Live diagram**: SVG of the deployed resources, regenerated on every change | tooling | State bucket, `github` pool | [live-diagram.md](live-diagram.md) |
 
 How traffic moves for each:
@@ -139,9 +138,9 @@ connectivity  LAN host ⇄ ipsec0 ⇄ HA VPN ⇄ vpc-poc subnets (hub and spoke)
 lakehouse     feeder SA (hub) → GCS managed folder / Iceberg catalog commit   (spoke project)
               engine → Iceberg REST catalog → vended token → GCS              (spoke project)
               BigQuery → BigLake metastore → same tables                      (spoke project)
-speech/Gemini LiteLLM pod → CoreDNS → 10.48.64.2 or 10.48.65.2 → tunnel → PSC → Google API
+AI (GCP)      LiteLLM pod → CoreDNS → 10.48.64.2 or 10.48.65.2 → tunnel → PSC → Google API
               (identity: pod token → STS → litellm-stt token, no key)
-inference     app → LiteLLM (key → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
+AI (routing)  app → LiteLLM (key → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
 diagram       GitHub Actions → github pool → read state bucket → commit SVG
 ```
 
@@ -183,7 +182,7 @@ List prices, running. The fixed part is the hub; everything else is pay-per-use.
 | Cloud Router, HA VPN gateway, Shared VPC, identity pools, org policies | shared | $0 |
 | Test VMs (off by default) | connectivity | $0 (≈ $8 each when on) |
 | GCS storage + catalog calls (sample tables) | lakehouse | cents |
-| Speech, TTS and Gemini calls | speech/Gemini | per use, see [hub-ai-services.md](hub-ai-services.md#cost) |
+| Speech, TTS and Gemini calls | speech/Gemini | per use, see [ai-inference.md](ai-inference.md#cost) |
 | Egress back over the tunnel | all | internet egress rates; ≈ $0 at test volume |
 | **Fixed total** | | **≈ $51** |
 
@@ -201,7 +200,7 @@ $3,520 a month for GCP ([landing-zone.md](landing-zone.md#cost)).
 | 3 | On-prem strongSwan + FRR; check BGP | [hub-connectivity.md §6](hub-connectivity.md#6-verification) |
 | 4 | Spoke: `enable_spoke = true`, `spoke_mode = "shared_vpc"` | [hub-connectivity.md §6.1](hub-connectivity.md#61-gcp-hub-and-spoke-optional) |
 | 5 | Lakehouse: comes with the spoke (`enable_lakehouse` defaults to `true`), then `make seed-lakehouse` | [spoke-lakehouse.md §5](spoke-lakehouse.md#5-deploy-order) |
-| 6 | Speech and Gemini: `enable_stt` defaults to `true` (so step 2 already builds it), then cluster DNS and the LiteLLM models | [hub-ai-services.md](hub-ai-services.md#bring-up) |
+| 6 | AI inference, GCP tier: `enable_stt` defaults to `true` (so step 2 already builds it), then cluster DNS and the LiteLLM models | [ai-inference.md](ai-inference.md#bring-up) |
 
 Steps 4–6 are toggles on the same stack; set `enable_stt = false` for a network-only first apply. `make apply-poc` applies it and refreshes the
 live diagram.

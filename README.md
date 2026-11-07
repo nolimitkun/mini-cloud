@@ -76,7 +76,7 @@ How the same design maps onto each provider. Each cloud's details are in its own
 | **Addresses** (private · cross-cloud) | `10.16.0.0/12` · `172.17.0.0/16` | `10.32.0.0/12` · `172.18.0.0/16` | `10.48.0.0/12` · `172.19.0.0/16` |
 | **Production fixed cost** (list, per month) | ≈ $1,610 | ≈ $1,900 | ≈ $3,520 (10 Gbps Dedicated Interconnect minimum) |
 | **VPN PoC** | Site-to-Site VPN, 2 tunnels, BGP | Route-based VPN Gateway, static routes | HA VPN + Cloud Router, BGP |
-| **Status in this repo** | Terraform written, not deployed | Terraform written (no policy code yet), not deployed | **PoCs running**: VPN, hub-and-spoke, lakehouse, speech and Gemini |
+| **Status in this repo** | Terraform written, not deployed | Terraform written (no policy code yet), not deployed | **PoCs running**: VPN, hub-and-spoke, lakehouse, AI inference (on-prem vLLM + Google speech and Gemini) |
 
 The platform totals about **$12.7k a month** with the colo edge and 10 TB of cross-site traffic
 ([cost estimate](docs/architecture/07-cost-estimate.md)); the GCP VPN PoC costs about $50 a month.
@@ -88,7 +88,7 @@ The platform totals about **$12.7k a month** with the colo edge and 10 TB of cro
 | [`docs/architecture/`](docs/README.md) | The shared, cloud-neutral design: specification, network, connectivity, security, DNS, buildout runbook, cost |
 | [`docs/aws/`](docs/aws/README.md) | AWS landing zone, Direct Connect build, SCPs, cost, VPN PoC |
 | [`docs/azure/`](docs/azure/README.md) | Azure landing zone, ExpressRoute build, Azure Policy, cost, VPN PoC |
-| [`docs/gcp/`](docs/gcp/README.md) | The running GCP hub-and-spoke (VPN, lakehouse, speech and Gemini, live diagram) as one architecture, the hybrid on-prem/GCP AI inference design, and the production landing zone |
+| [`docs/gcp/`](docs/gcp/README.md) | The running GCP hub-and-spoke (VPN, lakehouse, AI inference on-prem and on GCP, live diagram) as one architecture, and the production landing zone |
 | [`docs/diagrams/`](docs/diagrams/README.md) | Diagram gallery |
 | [`infra/`](infra/README.md) | Terraform: hub and spoke modules per cloud, guardrail policies, stacks, Makefile, CI |
 
