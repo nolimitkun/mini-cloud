@@ -59,7 +59,7 @@ hub VNet, spokes peered with a default route to the firewall. Step by step:
 
 Dedicated Interconnect with two VLAN attachments, Cloud Router (ASN `65020`), a Shared VPC host
 project as cloud hub (plus NCC if multi-VPC) and PSC for Google APIs. Step by step:
-[GCP — connectivity build](../gcp/README.md#connectivity-build).
+[GCP — connectivity build](../gcp/landing-zone.md#connectivity-build).
 
 ---
 

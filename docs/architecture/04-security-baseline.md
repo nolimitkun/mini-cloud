@@ -46,7 +46,7 @@ Endpoints, allow only `westeurope`. Policy body and assignments:
 
 Org Policy at the org or folder: deny VM external IPs, enforce storage public-access prevention,
 restrict locations to `europe-west1`, skip the default network. Constraints:
-[GCP — guardrails](../gcp/README.md#guardrails).
+[GCP — guardrails](../gcp/landing-zone.md#guardrails).
 
 ---
 

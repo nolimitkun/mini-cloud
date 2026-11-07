@@ -30,7 +30,7 @@ Fixed subtotal **≈ $1,900/month**; line items in [Azure — cost](../azure/REA
 
 ### 2.3 GCP
 
-Fixed subtotal **≈ $3,520/month**; line items in [GCP — cost](../gcp/README.md#cost). GCP is the
+Fixed subtotal **≈ $3,520/month**; line items in [GCP — cost](../gcp/landing-zone.md#cost). GCP is the
 highest because Dedicated Interconnect's smallest port is 10 Gbps; Partner Interconnect is the
 biggest saving ([§6](#6-biggest-levers-how-to-reduce)).
 

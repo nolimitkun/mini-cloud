@@ -1,10 +1,16 @@
-# Lakehouse — GCS Data Lake + Runtime Catalog (PoC)
+# Spoke: Lakehouse — GCS Data Lake + Runtime Catalog
+
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Live diagram](live-diagram.md)
+
+> **Where this sits:** the workload in the spoke project `mini-cloud-lakehouse` of the
+> [GCP hub-and-spoke](README.md). It uses the hub's Shared VPC subnet, guardrails and quota-project
+> model; it has no network of its own.
 
 **Status:** PoC — deployed in `mini-cloud-lakehouse`, merged to `main` (PR #8)
 **Purpose:** Extend the GCP VPN PoC with a lakehouse stack: GCS storage and the Lakehouse
 Runtime Catalog (Iceberg REST) for open-engine (Spark/Trino/Flink/PyIceberg) access.
 
-> This builds on the shared-VPC spoke from the [VPN PoC](vpn-poc.md). The spoke project
+> This builds on the shared-VPC spoke from the [VPN PoC](hub-connectivity.md). The spoke project
 > `mini-cloud-lakehouse` was an empty GCS bucket; it now has the Iceberg runtime catalog plus
 > managed folder IAM controlling cross-project feeder/consumer access.
 >
@@ -353,7 +359,7 @@ To add it back, re-introduce `google_dataplex_lake` + `google_dataplex_zone` (an
 
 ## 8. Related docs
 
-- [PoC VPN (GCP)](vpn-poc.md) — the base PoC this builds on
+- [PoC VPN (GCP)](hub-connectivity.md) — the base PoC this builds on
 - [01 — Architecture specification](../architecture/01-architecture-specification.md) — design goals and decisions
 - [04 — Security baseline](../architecture/04-security-baseline.md) — org policy guardrails
 - [Architecture diagram (HTML)](../diagrams/gcp-lakehouse-architecture.html) — interactive SVG diagram
