@@ -1,5 +1,10 @@
 # Live (Dynamic) Diagram
 
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Live diagram](live-diagram.md)
+
+> **Where this sits:** tooling for the [GCP hub-and-spoke](README.md). It draws everything in the
+> `infra/stacks/gcp-poc` state, hub and spoke together.
+
 The hand-drawn diagrams in [`diagrams/`](../diagrams/README.md) explain the *design*. This page covers a
 **generated** diagram that reflects the **actual deployed resources** and is regenerated on every
 change — so it follows the infrastructure rather than the intent.

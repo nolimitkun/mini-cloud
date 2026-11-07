@@ -1,4 +1,10 @@
-# PoC — LAN-as-on-prem over Site-to-Site VPN (GCP first)
+# Hub Connectivity — LAN as On-Prem over Site-to-Site VPN
+
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Live diagram](live-diagram.md)
+
+> **Where this sits:** the foundation of the [GCP hub-and-spoke](README.md). It builds the hub
+> network (`vpc-poc`), the tunnel and BGP, and attaches the spoke project; every other use case
+> reaches GCP through it.
 
 **Status:** PoC v0.1
 **Purpose:** Prove the hub-and-spoke pattern end-to-end **cheaply**, using the **local LAN as the
@@ -196,7 +202,7 @@ org_id     = "<org-id>"       # needs roles/compute.xpnAdmin on the org
 Verified E2E in both modes: `ping 10.48.16.2` from the LAN succeeds
 (on-prem → tunnel → hub → peering **or** Shared VPC → spoke VM). The Shared-VPC spoke's test VM has
 since been removed — the subnet stays ready for workloads, and the spoke now hosts the
-**lakehouse** (GCS + Iceberg runtime catalog): see the [lakehouse PoC](lakehouse-poc.md).
+**lakehouse** (GCS + Iceberg runtime catalog): see the [lakehouse PoC](spoke-lakehouse.md).
 
 ---
 
@@ -237,7 +243,7 @@ reuses the existing LAN host and internet connection.
 
 Notes:
 
-- **vs. the production circuit design** (~$3,520/mo GCP fixed, [GCP cost](README.md#cost)), the
+- **vs. the production circuit design** (~$3,520/mo GCP fixed, [GCP cost](landing-zone.md#cost)), the
   VPN PoC is **~1–2%** of the cost — the whole point of using VPN for the PoC.
 - **Tear it down between sessions** ([§9 teardown](#9-teardown)) → recurring cost drops to ~$0.
 - **No free-tier VM in Europe:** GCP's always-free `e2-micro` exists only in `us-central1` /

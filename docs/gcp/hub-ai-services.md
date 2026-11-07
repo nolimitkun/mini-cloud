@@ -1,4 +1,11 @@
-# Speech and Gemini from On-Prem (Chirp 3 and Gemini via LiteLLM)
+# Hub: Speech and Gemini from On-Prem (Chirp 3 and Gemini via LiteLLM)
+
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Live diagram](live-diagram.md)
+
+> **Where this sits:** shared services in the hub project `mini-cloud-499820` of the
+> [GCP hub-and-spoke](README.md): the PSC endpoints, the `onprem-k8s` identity pool and the
+> `litellm-stt` SA, used over the [tunnel](hub-connectivity.md). Any future on-prem caller of a
+> Google API reuses the same endpoints and identity pattern.
 
 On-prem applications transcribe, speak and chat with Google's speech and Gemini models without
 calling the public internet and without a service-account key. The on-prem side is the
@@ -356,7 +363,7 @@ Gemini audio is metered at 25 tokens per second, so one minute of audio is 1,500
 | Gemini 3.8 Flash (chat) | $0.75 / 1M input tokens, $3.75 / 1M output | a short question ≈ $0.0004 |
 | Gemini 3.5 Flash (chat) | $1.50 / 1M input tokens, $9.00 / 1M output (thinking tokens bill as output) | a short question ≈ $0.0013 |
 | Gemini 3.5 Flash-Lite (chat) | $0.30 / 1M input tokens, $2.50 / 1M output | a short question ≈ $0.00002 |
-| Cloud VPN tunnel (already there, [VPN PoC](vpn-poc.md)) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
+| Cloud VPN tunnel (already there, [VPN PoC](hub-connectivity.md)) | $0.05 per hour × 1 tunnel | ≈ $36.50 |
 | Replies back over the tunnel | internet egress rates (the peer is outside Google) | ≈ $0 at test volume; audio replies are larger than text |
 | STS, IAM Credentials, pool, SA, custom role, location policy, Cloud Router | free | $0 |
 

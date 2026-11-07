@@ -5,7 +5,7 @@ reached over ExpressRoute private peering, with PaaS consumed through Private En
 
 **Status:** Terraform written and validated offline; not deployed. Subscription ids, circuit ids and the state backend are `TODO` placeholders.
 
-← [Project overview](../../README.md) · [Shared design](../README.md) · [AWS](../aws/README.md) · [Azure](../azure/README.md) · [GCP](../gcp/README.md)
+← [Project overview](../../README.md) · [Shared design](../README.md) · [AWS](../aws/README.md) · [Azure](README.md) · [GCP](../gcp/README.md)
 
 ---
 
@@ -106,7 +106,7 @@ transfer and scenarios is in [doc 07](../architecture/07-cost-estimate.md#5-roll
 ## VPN PoC
 
 A cheap stand-in for ExpressRoute: the same LAN-as-on-prem host as the
-[GCP VPN PoC](../gcp/vpn-poc.md), with a **route-based VPN Gateway** (VpnGw1) and **static** routing
+[GCP VPN PoC](../gcp/hub-connectivity.md), with a **route-based VPN Gateway** (VpnGw1) and **static** routing
 (the LAN is the local network gateway). Workloads keep no public IP; the gateway is the only public
 address. PoC VNet `10.32.0.0/24`.
 
@@ -119,7 +119,7 @@ address. PoC VNet `10.32.0.0/24`.
   peers) can be added later to match the GCP and AWS paths.
 
 > Azure VPN Gateway takes about 20–45 minutes to provision. Verify with the GCP PoC's
-> [verification sequence](../gcp/vpn-poc.md#6-verification).
+> [verification sequence](../gcp/hub-connectivity.md#6-verification).
 
 ---
 

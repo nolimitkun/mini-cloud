@@ -31,13 +31,13 @@ Monthly platform cost by bucket. See [07 §5](../architecture/07-cost-estimate.m
 
 ### 06 · PoC detail — LAN ↔ GCP VPN
 Full data path: strongSwan/FRR on-prem host, IPsec tunnel + eBGP over the internet, GCP HA VPN,
-Cloud Router, and a private test VM. See [GCP VPN PoC §2](../gcp/vpn-poc.md#2-topology).
+Cloud Router, and a private test VM. See [GCP VPN PoC §2](../gcp/hub-connectivity.md#2-topology).
 
 ![PoC VPN detail](06-poc-vpn-detail.svg)
 
 ### 07 · PoC bring-up sequence
 Order of operations: IKEv2 negotiation → CHILD_SA/ESP tunnel → eBGP session + route exchange →
-data-plane verification. See [GCP VPN PoC §6](../gcp/vpn-poc.md#6-verification).
+data-plane verification. See [GCP VPN PoC §6](../gcp/hub-connectivity.md#6-verification).
 
 ![PoC bring-up sequence](07-poc-bringup-sequence.svg)
 
@@ -56,4 +56,4 @@ change. See [GCP live diagram](../gcp/live-diagram.md).
 ### 10 · Lakehouse architecture (interactive HTML)
 GCS storage layer + BigLake Iceberg REST runtime catalog, feeder/consumer access model. Interactive
 SVG in [gcp-lakehouse-architecture.html](gcp-lakehouse-architecture.html). GitHub shows HTML as
-source, so open it from a local clone. Text version in [lakehouse PoC §1](../gcp/lakehouse-poc.md#1-architecture).
+source, so open it from a local clone. Text version in [lakehouse PoC §1](../gcp/spoke-lakehouse.md#1-architecture).

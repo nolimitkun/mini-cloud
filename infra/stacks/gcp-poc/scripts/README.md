@@ -44,7 +44,7 @@ Point any Iceberg REST client at the catalog:
   cross-project callers may name the lakehouse project (the module grants them
   `serviceusage.serviceUsageConsumer`). Production model
   (`lakehouse_grant_quota_access = false`): name your **own** project instead and
-  enable `biglake.googleapis.com` there. See docs/gcp/lakehouse-poc.md §3.
+  enable `biglake.googleapis.com` there. See docs/gcp/spoke-lakehouse.md §3.
 - **Header:** `X-Iceberg-Access-Delegation: vended-credentials` — required so the
   catalog vends downscoped GCS credentials; without it the client must reach the
   bucket with its own IAM, defeating the `biglake.viewer`-only consumer model.
@@ -173,7 +173,7 @@ no service-account keys.
 
 Why it scales: managed folders cap at 1,500 principals. Routing every reader
 through the catalog vending SA means adding consumers never touches folder IAM.
-The full write-up lives in [docs/gcp/lakehouse-poc.md §3](../../../../docs/gcp/lakehouse-poc.md).
+The full write-up lives in [docs/gcp/spoke-lakehouse.md §3](../../../../docs/gcp/spoke-lakehouse.md).
 
 ### Granting consumers (declarative)
 

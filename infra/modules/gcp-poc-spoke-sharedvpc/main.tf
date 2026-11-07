@@ -258,7 +258,7 @@ resource "google_biglake_iceberg_namespace_iam_member" "dataset_feeder" {
 #
 # Production alternative: set grant_quota_project_access = false and have each
 # caller set x-goog-user-project to its OWN project (needs biglake API enabled
-# there) — per-team quota isolation + cost attribution. See docs/gcp/lakehouse-poc.md §3.
+# there) — per-team quota isolation + cost attribution. See docs/gcp/spoke-lakehouse.md §3.
 locals {
   quota_project_users = var.enable_lakehouse && var.grant_quota_project_access ? toset(concat(
     [for pair in values(local.dataset_feeders) : "serviceAccount:${pair.member}"],

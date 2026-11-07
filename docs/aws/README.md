@@ -5,7 +5,7 @@ AWS is one of the three cloud spokes of the on-prem hub: a Transit Gateway landi
 
 **Status:** Terraform written and validated offline; not deployed. Account ids, circuit ids and the state backend are `TODO` placeholders.
 
-← [Project overview](../../README.md) · [Shared design](../README.md) · [AWS](../aws/README.md) · [Azure](../azure/README.md) · [GCP](../gcp/README.md)
+← [Project overview](../../README.md) · [Shared design](../README.md) · [AWS](README.md) · [Azure](../azure/README.md) · [GCP](../gcp/README.md)
 
 ---
 
@@ -128,7 +128,7 @@ transfer and scenarios is in [doc 07](../architecture/07-cost-estimate.md#5-roll
 ## VPN PoC
 
 A cheap stand-in for Direct Connect: the same LAN-as-on-prem host as the
-[GCP VPN PoC](../gcp/vpn-poc.md), with an AWS **Site-to-Site VPN** (virtual private gateway, two
+[GCP VPN PoC](../gcp/hub-connectivity.md), with an AWS **Site-to-Site VPN** (virtual private gateway, two
 tunnels) and dynamic BGP `65000 ↔ 65010`. Workloads keep no public IP; the VPN endpoint is the only
 public address. PoC VPC `10.16.0.0/24`.
 
@@ -142,7 +142,7 @@ public address. PoC VPC `10.16.0.0/24`.
   `65010`) per tunnel, peering the VGW inside address.
 
 > Bring up one cloud at a time and verify with the GCP PoC's
-> [verification sequence](../gcp/vpn-poc.md#6-verification) before adding the next.
+> [verification sequence](../gcp/hub-connectivity.md#6-verification) before adding the next.
 
 ---
 

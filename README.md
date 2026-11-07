@@ -88,13 +88,13 @@ The platform totals about **$12.7k a month** with the colo edge and 10 TB of cro
 | [`docs/architecture/`](docs/README.md) | The shared, cloud-neutral design: specification, network, connectivity, security, DNS, buildout runbook, cost |
 | [`docs/aws/`](docs/aws/README.md) | AWS landing zone, Direct Connect build, SCPs, cost, VPN PoC |
 | [`docs/azure/`](docs/azure/README.md) | Azure landing zone, ExpressRoute build, Azure Policy, cost, VPN PoC |
-| [`docs/gcp/`](docs/gcp/README.md) | GCP landing zone, Interconnect build, Org Policy, cost, and the running PoCs: VPN, lakehouse, speech and Gemini, live diagram |
+| [`docs/gcp/`](docs/gcp/README.md) | The running GCP hub-and-spoke (VPN, lakehouse, speech and Gemini, live diagram) as one architecture, and the production landing zone |
 | [`docs/diagrams/`](docs/diagrams/README.md) | Diagram gallery |
 | [`infra/`](infra/README.md) | Terraform: hub and spoke modules per cloud, guardrail policies, stacks, Makefile, CI |
 
 - **Start with the design:** [docs/README.md](docs/README.md), the reading order.
 - **Build it:** [buildout runbook](docs/architecture/06-buildout-runbook.md).
-- **Try it cheaply:** [GCP VPN PoC](docs/gcp/vpn-poc.md), LAN as on-prem over site-to-site VPN.
+- **Try it cheaply:** [GCP VPN PoC](docs/gcp/hub-connectivity.md), LAN as on-prem over site-to-site VPN.
 
 ## Locked decisions
 
