@@ -24,7 +24,8 @@ flowchart LR
     subgraph onprem["On-prem hub · LAN 192.168.1.0/24 · ASN 65000"]
         gw["strongSwan + FRR host<br/>IPsec, BGP, source NAT"]
         subgraph k8s["mini-platform Kubernetes cluster"]
-            litellm["LiteLLM gateway<br/>speech + Gemini models"]
+            litellm["LiteLLM gateway<br/>placement policy · speech + Gemini models"]
+            vllm["vLLM on-prem inference<br/>Qwen3.6-27B · 1× RTX 5090"]
             engines["Trino · Spark · Jupyter"]
             dns["CoreDNS: Google API names<br/>pinned to PSC IPs"]
         end
@@ -51,6 +52,7 @@ flowchart LR
     end
 
     gw <==>|"IPsec + BGP over the internet"| vpn
+    litellm -->|"restricted data stays"| vllm
     litellm -.->|"token exchange"| wif
     wif -.-> sa
     litellm -->|"tunnel"| psc
@@ -127,6 +129,7 @@ These hub pieces serve every use case. A new use case should reuse them rather t
 | **Hybrid connectivity**: the LAN as on-prem hub over IPsec + BGP | hub | (it is the foundation) | [hub-connectivity.md](hub-connectivity.md) |
 | **Lakehouse**: GCS data lake + Iceberg REST catalog, BigQuery through federation | spoke | Shared VPC subnet, guardrails, quota project | [spoke-lakehouse.md](spoke-lakehouse.md) |
 | **Speech and Gemini from on-prem**: Chirp 3, Cloud TTS, Gemini TTS, Gemini Live and Gemini chat as LiteLLM models | hub (APIs, SA, endpoints) | Tunnel, both PSC endpoints, on-prem DNS, `onprem-k8s` pool, `eu` location exception | [hub-ai-services.md](hub-ai-services.md) |
+| **Hybrid AI inference** (design): on-prem vLLM and GCP models behind one gateway, placed by data class, chosen by benchmark | on-prem + hub | Tunnel, PSC endpoints, `onprem-k8s` pool, `eu` exception | [hybrid-ai-inference.md](hybrid-ai-inference.md) |
 | **Live diagram**: SVG of the deployed resources, regenerated on every change | tooling | State bucket, `github` pool | [live-diagram.md](live-diagram.md) |
 
 How traffic moves for each:
@@ -138,6 +141,7 @@ lakehouse     feeder SA (hub) → GCS managed folder / Iceberg catalog commit   
               BigQuery → BigLake metastore → same tables                      (spoke project)
 speech/Gemini LiteLLM pod → CoreDNS → 10.48.64.2 or 10.48.65.2 → tunnel → PSC → Google API
               (identity: pod token → STS → litellm-stt token, no key)
+inference     app → LiteLLM (key → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
 diagram       GitHub Actions → github pool → read state bucket → commit SVG
 ```
 

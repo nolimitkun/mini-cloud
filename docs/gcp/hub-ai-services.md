@@ -1,6 +1,6 @@
 # Hub: Speech and Gemini from On-Prem (Chirp 3 and Gemini via LiteLLM)
 
-← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Live diagram](live-diagram.md)
+← [GCP hub-and-spoke](README.md) · [Connectivity](hub-connectivity.md) · [Lakehouse](spoke-lakehouse.md) · [Speech and Gemini](hub-ai-services.md) · [Hybrid inference](hybrid-ai-inference.md) · [Live diagram](live-diagram.md)
 
 > **Where this sits:** shared services in the hub project `mini-cloud-499820` of the
 > [GCP hub-and-spoke](README.md): the PSC endpoints, the `onprem-k8s` identity pool and the

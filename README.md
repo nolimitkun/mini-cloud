@@ -88,7 +88,7 @@ The platform totals about **$12.7k a month** with the colo edge and 10 TB of cro
 | [`docs/architecture/`](docs/README.md) | The shared, cloud-neutral design: specification, network, connectivity, security, DNS, buildout runbook, cost |
 | [`docs/aws/`](docs/aws/README.md) | AWS landing zone, Direct Connect build, SCPs, cost, VPN PoC |
 | [`docs/azure/`](docs/azure/README.md) | Azure landing zone, ExpressRoute build, Azure Policy, cost, VPN PoC |
-| [`docs/gcp/`](docs/gcp/README.md) | The running GCP hub-and-spoke (VPN, lakehouse, speech and Gemini, live diagram) as one architecture, and the production landing zone |
+| [`docs/gcp/`](docs/gcp/README.md) | The running GCP hub-and-spoke (VPN, lakehouse, speech and Gemini, live diagram) as one architecture, the hybrid on-prem/GCP AI inference design, and the production landing zone |
 | [`docs/diagrams/`](docs/diagrams/README.md) | Diagram gallery |
 | [`infra/`](infra/README.md) | Terraform: hub and spoke modules per cloud, guardrail policies, stacks, Makefile, CI |
 
