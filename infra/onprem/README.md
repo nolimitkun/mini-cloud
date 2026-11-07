@@ -1,6 +1,6 @@
 # On-prem VPN endpoint (PoC)
 
-Config for the **on-prem side** of the GCP VPN PoC ([docs/gcp/vpn-poc.md](../../docs/gcp/hub-connectivity.md)):
+Config for the **on-prem side** of the GCP VPN PoC ([docs/gcp/hub-connectivity.md](../../docs/gcp/hub-connectivity.md)):
 a Linux host on the LAN running **strongSwan** (IPsec) + **FRR** (BGP).
 
 ```
@@ -53,7 +53,7 @@ Two things break the tunnel without any config change:
   updates the strongSwan local id, and recreates `ipsec0` if it's missing.
 - **Recreated Kubernetes cluster** (`minikube delete`, `deploy-minikube.sh --reset`). New
   service-account signing keys mean GCP rejects LiteLLM's token for the chirp-3 model. Run
-  `bash refresh-k8s-jwks.sh` and commit `onprem-k8s-jwks.json` (docs/gcp/speech-services.md).
+  `bash refresh-k8s-jwks.sh` and commit `onprem-k8s-jwks.json` (docs/gcp/hub-ai-services.md).
 
 ## Verify
 

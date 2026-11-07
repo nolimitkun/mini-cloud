@@ -157,7 +157,7 @@ variable "lakehouse_grant_quota_access" {
   default = true
 }
 
-# --- Speech services for on-prem (LiteLLM chirp-3, TTS and Gemini models, docs/gcp/speech-services.md) ---
+# --- Speech services for on-prem (LiteLLM chirp-3, TTS and Gemini models, docs/gcp/hub-ai-services.md) ---
 
 variable "enable_stt" {
   type    = bool
@@ -165,7 +165,7 @@ variable "enable_stt" {
 }
 
 # false: an org admin owns the hub's eu location exception, and applies need no
-# org-policy permission (docs/gcp/speech-services.md, Deployer roles).
+# org-policy permission (docs/gcp/hub-ai-services.md, Deployer roles).
 variable "stt_manage_location_policy" {
   type    = bool
   default = true
