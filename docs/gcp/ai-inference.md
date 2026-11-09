@@ -5,11 +5,18 @@
 > **Where this sits:** spans the on-prem hub and the GCP hub of the [GCP hub-and-spoke](README.md).
 > On GCP it uses the hub project `mini-cloud-499820`: the PSC endpoints, the `onprem-k8s` identity
 > pool and the `litellm-stt` SA, reached over the [tunnel](hub-connectivity.md). On-prem it uses the
-> mini-platform cluster's vLLM and its LiteLLM gateway.
+> mini-platform cluster's vLLM and its gateway, agentgateway, with OPA deciding each request.
 
-On-prem applications chat, transcribe and speak through **one gateway**, the
-[mini-platform](https://github.com/nolimitkun/mini-platform-deployment) cluster's **LiteLLM**,
-which exposes every model as an ordinary OpenAI-style model. Behind it sit two tiers:
+On-prem applications chat, transcribe, speak and call shared tools through **one gateway**, the
+[mini-platform](https://github.com/nolimitkun/mini-platform-deployment) cluster's
+**[agentgateway](https://agentgateway.dev)**. It serves every chat model on one OpenAI-compatible
+endpoint, passes Google's speech APIs through with a keyless login, and merges the cluster's MCP
+servers into one tool endpoint. Before routing, it asks **OPA** whether this client may use this
+model or tool. The policy is Rego in Git; the **OPA Control Plane (OCP)** builds it into bundles that
+OPA loads. **agentregistry** is the catalog of tools and agents. agentgateway replaced LiteLLM in
+November 2026; the deploy repo's [`docs/agentgateway.md`][agw] covers its configuration.
+
+Behind the gateway sit two tiers:
 - **On-prem inference:** vLLM on the cluster's GPU, for work that can't leave the building
   (personal data, regulated records, source code, anything under contract or residency rules).
 - **GCP inference:** Google's speech and Gemini models on Vertex AI, reached over the VPN through
@@ -19,10 +26,13 @@ The gateway decides where each request may run, from the data's class, not from 
 preference. Where both tiers are allowed, a benchmark picks the model.
 
 **Status:**
-- **Running:** both tiers. vLLM serves Qwen3.6-27B on one RTX 5090, with a measured benchmark in
-  mini-platform-deployment. Nine Google models run through LiteLLM over the VPN, tested end to end.
-- **Designed, not built:** the placement policy, the egress controls and the hybrid benchmark;
-  see [Plan](#plan).
+- **Running:** both tiers, behind agentgateway. vLLM serves Qwen3.6-27B on one RTX 5090, with a
+  measured benchmark in mini-platform-deployment. The Gemini chat models and Google's speech APIs
+  go over the VPN.
+- **Running:** the placement policy in OPA: data class per client, placement per model, per-tool
+  rules for MCP, with tests in CI.
+- **Designed, not built:** inward-only fallback, a PII guardrail, the egress controls and the hybrid
+  benchmark; see [Plan](#plan).
 
 ---
 
@@ -30,89 +40,110 @@ preference. Where both tiers are allowed, a benchmark picks the model.
 
 ```mermaid
 flowchart LR
-    subgraph onprem["On-prem"]
-        apps["Apps, agents, Open WebUI<br/>(LiteLLM key per team)"]
-        subgraph gwbox["LiteLLM gateway: policy point"]
-            policy["Data-class check<br/>access groups · guardrails"]
+    subgraph onprem["On-prem (mini-platform cluster)"]
+        apps["Apps, agents, Open WebUI<br/>(API key per client)"]
+        subgraph gwbox["agentgateway: policy point"]
+            keys["API key check"]
+            authz["ext_authz → OPA<br/>data class · model · MCP tool"]
         end
+        opa["OPA"]
+        ocp["OCP<br/>(Rego from Git → MinIO)"]
+        reg["agentregistry<br/>(catalog)"]
+        mcp["MCP servers<br/>Grafana · kagent tools"]
         subgraph tier1["On-prem inference"]
-            sched["llm-d scheduler<br/>(prefix + load aware)"]
+            sched["vLLM router<br/>(llm-d available)"]
             vllm["vLLM pools<br/>PoC: 1× RTX 5090<br/>Prod: HGX B300 nodes"]
         end
-        obs["Langfuse · Prometheus · MLflow<br/>(prompts and traces stay on-prem)"]
+        obs["Prometheus · Tempo · Langfuse<br/>(prompts and traces stay on-prem)"]
     end
     subgraph gcp["GCP hub project"]
         psc["PSC endpoints<br/>10.48.64.2 · 10.48.65.2"]
-        vertex["Vertex AI<br/>Gemini · Model Garden"]
+        vertex["Vertex AI Gemini<br/>Speech · Text-to-Speech"]
     end
 
-    apps --> policy
-    policy -->|"restricted, confidential,<br/>internal, public"| sched --> vllm
-    policy ==>|"internal, public only<br/>tunnel + keyless identity"| psc --> vertex
-    policy -.-> obs
+    apps --> keys --> authz
+    authz <--> opa
+    ocp --> opa
+    reg -.->|"lists"| gwbox
+    authz -->|"restricted, confidential,<br/>internal, public"| sched --> vllm
+    authz ==>|"internal, public only<br/>tunnel + keyless identity"| psc --> vertex
+    authz --> mcp
+    gwbox -.-> obs
 ```
 
 The gateway is the only path to either tier. Everything else hangs off that:
 - Callers never get an engine URL or a Google credential (in the PoC the namespace still leaks the gateway's identity; see [Egress](#egress-making-the-gateway-the-only-door)).
-- The data class travels with the caller's key.
-- Each model belongs to a placement group.
-- A key only sees the groups its class allows.
+- Each client has its own API key; the key carries the client's name, and OPA maps the name to a
+  data class.
+- Each model, and each Google API, has one placement: `onprem`, `gcp` or `external`.
+- A client gets only the placements its class allows. Anything not allowed is denied with a 403 that
+  gives the reason.
 
 ---
 
 ## Models
 
-What LiteLLM serves today.
+What agentgateway serves today. Clients send the model name to
+`/v1/chat/completions` on `http://agentgateway-proxy.mini-platform.svc.cluster.local/v1`
+(`agentgateway.test` from outside the cluster).
 
 **On-prem:**
 
-| LiteLLM model | OpenAI route | Model | Where |
-|---------------|--------------|-------|-------|
-| `qwen3.6-27b` | `/v1/chat/completions` | Qwen3.6-27B, NVFP4 | vLLM on the cluster's RTX 5090 |
+| Model | Model | Where | Placement |
+|-------|-------|-------|-----------|
+| `qwen3.6-27b` | Qwen3.6-27B, NVFP4 | vLLM on the cluster's RTX 5090 | `onprem` |
 
-**On GCP**, all in the hub project:
+**On GCP**, all in the hub project, chat on the OpenAI endpoint:
 
-| LiteLLM model | OpenAI route | Google model | API, location |
-|---------------|--------------|--------------|---------------|
-| `chirp-3` | `/v1/audio/transcriptions` | Chirp 3 | Speech-to-Text v2, `eu` |
-| `tts-chirp-3-hd` | `/v1/audio/speech` | Chirp 3 HD voices | Cloud Text-to-Speech, `eu` endpoint |
-| `gemini-3.8-flash-tts` | `/v1/audio/speech` | Gemini 3.8 Flash TTS | Vertex AI, `eu` multi-region |
-| `gemini-3.8-flash-lite-tts` | `/v1/audio/speech` | Gemini 3.8 Flash-Lite TTS | Vertex AI, `eu` multi-region |
-| `gemini-live` | `/v1/realtime` (websocket) | Gemini Live 2.5 Flash native audio, live transcription | Vertex AI, `europe-west1` |
-| `gemini-4-argon` | `/v1/chat/completions` | Gemini 4 Argon | Vertex AI, `eu` multi-region |
-| `gemini-3.8-flash` | `/v1/chat/completions` | Gemini 3.8 Flash | Vertex AI, `eu` multi-region |
-| `gemini-3.5-flash` | `/v1/chat/completions` | Gemini 3.5 Flash | Vertex AI, `eu` multi-region |
-| `gemini-3.5-flash-lite` | `/v1/chat/completions` | Gemini 3.5 Flash-Lite | Vertex AI, `eu` multi-region |
+| Model | Google model | API, location | Placement |
+|-------|--------------|---------------|-----------|
+| `gemini-4-argon` | Gemini 4 Argon | Vertex AI, `eu` multi-region | `gcp` |
+| `gemini-3.8-flash` | Gemini 3.8 Flash | Vertex AI, `eu` multi-region | `gcp` |
+| `gemini-3.5-flash` | Gemini 3.5 Flash | Vertex AI, `eu` multi-region | `gcp` |
+| `gemini-3.5-flash-lite` | Gemini 3.5 Flash-Lite | Vertex AI, `eu` multi-region | `gcp` |
+
+**Speech, on GCP, through Google's own APIs.** agentgateway doesn't translate OpenAI `/v1/audio`
+calls the way LiteLLM did. Clients call Google's API under a gateway prefix, and the gateway adds the
+Google token:
+
+| Gateway route | Google API | Models |
+|---------------|------------|--------|
+| `/google/speech/...` | Speech-to-Text v2, `eu-speech.googleapis.com` | Chirp 3 (`chirp_3`, location `eu`) |
+| `/google/tts/...` | Text-to-Speech v1, `eu-texttospeech.googleapis.com` | Chirp 3 HD voices |
+| `/google/vertex-eu/...` | Vertex AI, `aiplatform.eu.rep.googleapis.com` | Gemini 3.8 Flash TTS and Flash-Lite TTS (`generateContent` with audio output) |
+| `/google/vertex-europe-west1/...` | Vertex AI, `europe-west1-aiplatform.googleapis.com` | Gemini Live 2.5 Flash native audio (`BidiGenerateContent` websocket) |
+
+All four have placement `gcp`.
 
 **Outside both tiers:** `deepseek-v4-pro` (chat) goes to `api.deepseek.com` over the internet with an
-API key, for kagent. It is neither on-prem nor in the EU, so the placement policy treats it as an
-external provider: public data only, or removed.
+API key. It is neither on-prem nor in the EU, so its placement is `external`: public data only, plus
+named exceptions. kagent and HolmesGPT have one, for cluster state and telemetry.
+
+**Tools.** Grafana MCP and kagent's tool server sit behind the gateway as one MCP endpoint at `/mcp`.
+OPA decides which client may call which tool. agentregistry lists that endpoint.
 
 How each GCP call travels:
 
 ```
-client (Open WebUI, kagent, curl …) with a LiteLLM key
-  → LiteLLM   POST /v1/audio/transcriptions  model=chirp-3
+client (Open WebUI, kagent, curl …) with its gateway API key
+  → agentgateway   POST /v1/chat/completions  model=gemini-4-argon
+       API key → client name → OPA: class internal, placement gcp → allow
        pod token ──STS──▶ short-lived token for litellm-stt@  (no key file)
-  → eu-speech.googleapis.com   (cluster DNS → 10.48.64.2)
-  → IPsec tunnel → PSC endpoint for Google APIs in vpc-poc
-  → Speech-to-Text v2, location eu, model chirp_3
-
-client → LiteLLM   POST /v1/audio/speech  model=tts-chirp-3-hd  voice=en-US-Chirp3-HD-Charon
-  → eu-texttospeech.googleapis.com  → same DNS, tunnel and PSC endpoint
-  → Text-to-Speech v1 text:synthesize
-
-client → LiteLLM   POST /v1/audio/speech  model=gemini-3.8-flash-tts  voice=Kore
   → aiplatform.eu.rep.googleapis.com  (cluster DNS → 10.48.65.2, regional PSC endpoint)
-  → Vertex AI generateContent, location eu
+  → IPsec tunnel → Vertex AI generateContent, location eu
 
-client ⇄ LiteLLM   WS /v1/realtime?model=gemini-live   (PCM16 audio in, transcript events out)
+client → agentgateway   POST /google/speech/v2/projects/mini-cloud-499820/locations/eu/recognizers/_:recognize
+  → eu-speech.googleapis.com   (cluster DNS → 10.48.64.2, PSC endpoint for Google APIs)
+  → Speech-to-Text v2, model chirp_3
+
+client → agentgateway   POST /google/tts/v1/text:synthesize
+  → eu-texttospeech.googleapis.com  → same DNS, tunnel and PSC endpoint
+
+client → agentgateway   POST /google/vertex-eu/v1/projects/…/locations/eu/publishers/google/models/gemini-3.8-flash-tts:generateContent
+  → aiplatform.eu.rep.googleapis.com → regional PSC endpoint
+
+client ⇄ agentgateway   WS /google/vertex-europe-west1/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent
   ⇄ europe-west1-aiplatform.googleapis.com  (cluster DNS → 10.48.64.2)
-  ⇄ Vertex AI BidiGenerateContent, location europe-west1
-
-client → LiteLLM   POST /v1/chat/completions  model=gemini-4-argon (or a Gemini 3.x Flash)
-  → aiplatform.eu.rep.googleapis.com  → same regional PSC endpoint as Gemini TTS
-  → Vertex AI generateContent, location eu
 ```
 
 ---
@@ -133,21 +164,35 @@ Rules that hold in every class:
   never spills over.
 - **Residency.** GCP models run in `eu` or `europe-west1` only, as today. That is already enforced
   by the org's location policy plus the hub's `eu` exception.
-- **Logs stay on-prem.** LiteLLM stores prompts in its own database
-  (`store_prompts_in_spend_logs: true`) and traces in Langfuse, both on-prem. Restricted prompts
-  never leave, even as telemetry.
+- **Logs stay on-prem.** The gateway's traces go to Tempo, the clients' own traces to Langfuse, and
+  OPA's decision log to Loki (with request bodies and API keys masked), all on-prem. Restricted
+  prompts never leave, even as telemetry.
 
 ### How the gateway enforces it
 
-All of this is LiteLLM configuration; nothing new to run.
+agentgateway calls OPA (the Envoy ext_authz protocol, over gRPC) before routing every request, with
+the request body and the client's name. OPA's answer is final; if OPA is down, the gateway denies
+everything.
 
-| Mechanism | Setting | Effect |
-|-----------|---------|--------|
-| **Placement groups** | `model_info.access_groups`: `onprem` on vLLM models, `gcp` on Vertex models | One label per model; new models inherit the policy by group |
-| **Keys and teams per class** | A team per data class; its keys may use `onprem` only, or `onprem` + `gcp` | A restricted caller can't even name a Gemini model: 401, not a silent reroute |
-| **Fallbacks** | `router_settings.fallbacks` only from `gcp` models to `onprem` models | Cloud outage or quota → on-prem; never the reverse |
-| **Guardrail on cloud-bound calls** | A pre-call PII guardrail (for example Presidio) on `gcp`-group models, set to block | Catches restricted data sent on an internal-class key |
-| **Aliases** | Models named by role, `chat-default` and `chat-sensitive`, each mapped to concrete models | Apps don't hard-code a model, so placement can change after a benchmark without app changes |
+| Mechanism | Where | Effect |
+|-----------|-------|--------|
+| **A key per client** | Vault → agentgateway `apiKeyAuthentication`; each entry carries `{"client": "<name>"}` | No key, 401. The client name goes to OPA with each request. |
+| **Data class per client** | `policies/gateway/data.json`: `clients` | `restricted` and `confidential` → `onprem`; `internal` → `onprem`, `gcp`; `public` → also `external` |
+| **Placement per model and Google API** | `data.json`: `models`, `google_apis` | A model or API without a placement is denied, so a new model is blocked until someone places it |
+| **Named exceptions** | `data.json`: `exceptions`, each with an owner and a reason | Today: kagent and HolmesGPT may use `deepseek-v4-pro` |
+| **MCP tools per client** | `data.json`: `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
+| **Policy delivery** | OCP builds `policies/gateway` from `main` into a bundle in MinIO; OPA polls it | A merged policy change is live within about a minute, with no redeploy. The bundle's manifest names the Git commit. |
+| **Tests** | `policies/gateway/authz_test.rego`, `opa test` in CI | Every rule above has a test |
+
+A denied call gets a 403 that says why, for example
+`{"error":{"message":"model deepseek-v4-pro is not allowed for internal data","type":"policy_denied"}}`.
+
+Not built yet, from the original design:
+- **Inward-only fallback.** agentgateway's virtual models (`failover`) can send a Gemini request to
+  `qwen3.6-27b` when GCP fails. Nothing is set up yet.
+- **PII guardrail on cloud-bound calls.** agentgateway has prompt guards (regex, a webhook, Model
+  Armor). None is set up yet.
+- **Role aliases** (`chat-default`, `chat-sensitive`): virtual models again.
 
 ### Egress: making the gateway the only door
 
@@ -155,14 +200,14 @@ Policy in the gateway only counts if nothing can go around it.
 
 | Layer | PoC today | Production |
 |-------|-----------|------------|
-| **Google identity** | Google accepts only `system:serviceaccount:mini-platform:litellm` (identity-pool condition). But on the Kubernetes side, anything that can create pods in `mini-platform` (Argo CD, JupyterHub's `hub`, the Spark operator) or mint that service account's token (kagent's kmcp controller) can act as it ([who can act as `litellm-stt`](#who-can-act-as-litellm-stt)) | LiteLLM alone in its own namespace, with the condition updated to match; an admission policy that admits `serviceAccountName: litellm` only for the gateway's pods; no role other than the kubelet's can create `serviceaccounts/token` for it |
+| **Google identity** | Google accepts only the gateway's service account, `system:serviceaccount:mini-platform:agentgateway-proxy` (identity-pool condition). But on the Kubernetes side, anything that can create pods in `mini-platform` (Argo CD, JupyterHub's `hub`, the Spark operator) or mint that service account's token (kagent's kmcp controller) can act as it ([who can act as `litellm-stt`](#who-can-act-as-litellm-stt)) | The gateway alone in its own namespace, with the condition updated to match; an admission policy that admits `serviceAccountName: agentgateway-proxy` only for the gateway's pods; no role other than the kubelet's can create `serviceaccounts/token` for it |
 | **Network to the PSC IPs** | Any pod can reach `10.48.64.2` over the tunnel. Minikube's CNI doesn't enforce NetworkPolicy, and the tunnel host rewrites every source to its LAN address. | NetworkPolicy egress (a policy-enforcing CNI) lets only the gateway reach the PSC IPs; the on-prem NGFW allows only the gateway's source range to the GCP endpoint ranges |
 | **Other projects through PSC** | `all-apis` reaches any project's APIs, so a pod holding its own Google credential could use them | A VPC Service Controls perimeter around the hub, with the PSC endpoint on the `vpc-sc` bundle |
 | **Internet** | The home router allows it | Default-deny egress (constraint C2); public AI APIs blocked at the NGFW |
 
 So in the PoC the gateway is not yet the only door. A Spark job, a notebook spawned by JupyterHub,
-or a compromised kagent controller can obtain the `litellm` token, trade it for the hub's Google
-credentials and call Gemini directly: no data-class check, no PII guardrail. Without that token, a
+or a compromised kagent controller can obtain the `agentgateway-proxy` token, trade it for the hub's
+Google credentials and call Gemini directly: no data-class check. Without that token, a
 pod that reaches the PSC IP can't call anything. Locking down the gateway identity (plan step 3)
 closes the main hole and fits the PoC; the network controls in the right-hand column close the
 rest in production.
@@ -176,7 +221,7 @@ rest in production.
 | Hardware | 1× RTX 5090, 32 GB | HGX B300 nodes: Blackwell Ultra, 288 GB HBM3e per GPU, NVLink within a node |
 | Model today | `unsloth/Qwen3.6-27B-NVFP4` (≈ 24 GB of weights), 8k context, FP8 KV cache | Large open-weight models (hundreds of billions of parameters, MoE) at FP8 or NVFP4, long context |
 | Engine | vLLM, `--enforce-eager` (no room for CUDA graphs at this weight-to-memory ratio) | vLLM with CUDA graphs, tensor and expert parallelism across a node |
-| Routing | vLLM production-stack router (llm-d available, off) | llm-d: prefix-cache-aware scheduling, prefill/decode disaggregation, many replicas |
+| Routing | agentgateway → vLLM production-stack router (llm-d available, off) | llm-d: prefix-cache-aware scheduling, prefill/decode disaggregation, many replicas |
 | Measured | 324.8 output tok/s at concurrency 32; TTFT median 145 ms at concurrency 1 ([benchmark][bench]) | To be measured on the target nodes |
 
 The PoC proves the serving stack, the gateway policy and the benchmark harness. **It doesn't predict
@@ -199,12 +244,12 @@ service account. The same pattern serves any Google model added later.
 | `gcp-vpn-poc` | `google_compute_global_address` + `google_compute_global_forwarding_rule` (`all-apis`) at **10.48.64.2** | A private IP for every `*.googleapis.com` API inside the hub VPC. Private Google Access only serves VMs; hybrid clients need this endpoint. The IP comes from the GCP private-endpoint block (doc 02 §1.3). |
 | `gcp-vpn-poc` | Cloud Router advertises `10.48.64.2/32` (mode becomes `CUSTOM` + `ALL_SUBNETS`) | So FRR on-prem learns a route to it over `ipsec0`. |
 | `gcp-vpn-poc` | Subnet `subnet-poc-psc-endpoints` (**10.48.65.0/28**) + `google_network_connectivity_regional_endpoint` `psc-aiplatform-eu` at **10.48.65.2**, target `aiplatform.eu.rep.googleapis.com` | Vertex AI's `eu` multi-region is a two-level `*.eu.rep.googleapis.com` name, which the `all-apis` endpoint's `*.googleapis.com` certificate doesn't cover. A regional endpoint does; `ALL_SUBNETS` advertises its subnet. |
-| `gcp-stt-poc` | `speech`, `texttospeech`, `aiplatform`, `sts`, `iamcredentials` APIs; SA `litellm-stt` with `speech.client`, `serviceUsageConsumer` and custom role `litellmVertexCaller` | The SA can only transcribe, synthesize and call Gemini models (`aiplatform.endpoints.predict`; `roles/aiplatform.user` would also let it create and delete Vertex resources). Text-to-Speech has no IAM permission of its own; LiteLLM bills the hub project (`x-goog-user-project`), hence `serviceUsageConsumer`. |
+| `gcp-stt-poc` | `speech`, `texttospeech`, `aiplatform`, `sts`, `iamcredentials` APIs; SA `litellm-stt` with `speech.client`, `serviceUsageConsumer` and custom role `litellmVertexCaller` | The SA can only transcribe, synthesize and call Gemini models (`aiplatform.endpoints.predict`; `roles/aiplatform.user` would also let it create and delete Vertex resources). Text-to-Speech has no IAM permission of its own; a caller that bills the hub as quota project (`x-goog-user-project`) needs `serviceUsageConsumer`. The SA and role keep their LiteLLM-era names: renaming recreates them. |
 | `gcp-stt-poc` | Project-level `gcp.resourceLocations` policy: inherit the org's list, add `eu` | The org allows only `europe-west1`, where Chirp 3 and the Gemini 3.8 TTS models don't run. The exception covers the hub only; without it Google answers `FAILED_PRECONDITION … violates constraint`. Gemini Live runs in `europe-west1`, which the org already allows. |
-| `gcp-stt-poc` | Workload identity pool `onprem-k8s`, OIDC provider `minikube` | Trusts the cluster's service-account tokens. Its issuer (`https://kubernetes.default.svc.cluster.local`) isn't reachable from Google, so the public keys are uploaded (`onprem-k8s-jwks.json`). The attribute condition accepts only `system:serviceaccount:mini-platform:litellm`. |
-| `gcp-stt-poc` | `roles/iam.workloadIdentityUser` on `litellm-stt` for that one subject | Lets the LiteLLM pod impersonate the SA. |
+| `gcp-stt-poc` | Workload identity pool `onprem-k8s`, OIDC provider `minikube` | Trusts the cluster's service-account tokens. Its issuer (`https://kubernetes.default.svc.cluster.local`) isn't reachable from Google, so the public keys are uploaded (`onprem-k8s-jwks.json`). The attribute condition accepts only the subjects in `k8s_subjects`: `system:serviceaccount:mini-platform:agentgateway-proxy`. |
+| `gcp-stt-poc` | `roles/iam.workloadIdentityUser` on `litellm-stt` for each of those subjects | Lets the gateway's proxy pod impersonate the SA. |
 | on-prem host | nftables source rewrite in `ipsec-xfrm.sh` | Without it, traffic into the tunnel leaves as `169.254.0.2`, which GCP can't reply to. |
-| mini-platform-deployment | The nine Google models, `litellm` ServiceAccount, projected token, `scripts/gcp-psc-dns.sh` | The client side: token, credential config and DNS. |
+| mini-platform-deployment | `agentgateway-config` chart: the Gemini models, the `/google/*` routes, `AgentgatewayParameters` with the projected token and credential config; `scripts/gcp-psc-dns.sh` | The client side: token, credential config and DNS. |
 
 ### Google APIs
 
@@ -232,13 +277,14 @@ aren't set up.
 It's the same federation as the GitHub workflows ([live diagram](live-diagram.md)), with Kubernetes as the identity
 provider:
 
-1. The kubelet mounts a service-account token into the LiteLLM pod, at
+1. The kubelet mounts a service-account token into the gateway's proxy pod, at
    `/var/run/secrets/gcp-wif/token`, minted for the pool's audience and rotated before it expires.
-2. LiteLLM's credential config (`type: external_account`, terraform output
-   `stt_credential_config`) tells google-auth to send that token to `sts.googleapis.com`. GCP checks
-   the signature against the uploaded keys and the subject against the condition.
-3. google-auth trades the federated token at `iamcredentials.googleapis.com` for a one-hour access
-   token for `litellm-stt`, and LiteLLM calls the speech API or Vertex AI with it.
+2. The credential config (`type: external_account`, terraform output `stt_credential_config`,
+   pointed to by `GOOGLE_APPLICATION_CREDENTIALS`) tells the proxy to send that token to
+   `sts.googleapis.com`. GCP checks the signature against the uploaded keys and the subject against
+   the condition.
+3. The proxy trades the federated token at `iamcredentials.googleapis.com` for a one-hour access
+   token for `litellm-stt`, and calls Vertex AI or the speech API with it.
 
 The credential config holds no secret, which is why it can live in Git.
 
@@ -250,10 +296,10 @@ Everything below was read back from the hub project and the cluster on 2026-11-0
 
 | Identity | Where | Part in the flow |
 |----------|-------|------------------|
-| `system:serviceaccount:mini-platform:litellm` | Kubernetes service account (created by the postgresql release) | What the LiteLLM pod and its PreSync migration Job run as. Its projected token is the only credential on-prem. |
-| Pool `onprem-k8s`, provider `minikube` | Workload identity federation, hub project | Trusts tokens signed by the uploaded cluster keys, issuer `https://kubernetes.default.svc.cluster.local`. Mapping `google.subject = assertion.sub`; condition `assertion.sub == 'system:serviceaccount:mini-platform:litellm'`. No `allowedAudiences`, so the token's audience must be the provider's own name (which the projected volume requests). |
+| `system:serviceaccount:mini-platform:agentgateway-proxy` | Kubernetes service account, created by the agentgateway controller for the `agentgateway-proxy` Gateway | What the gateway's proxy runs as. Its projected token is the only credential on-prem. |
+| Pool `onprem-k8s`, provider `minikube` | Workload identity federation, hub project | Trusts tokens signed by the uploaded cluster keys, issuer `https://kubernetes.default.svc.cluster.local`. Mapping `google.subject = assertion.sub`; condition `assertion.sub in [...]` over `k8s_subjects`. No `allowedAudiences`, so the token's audience must be the provider's own name (which the projected volume requests). |
 | `litellm-stt@mini-cloud-499820.iam.gserviceaccount.com` | Google service account, hub project | The identity every Google call runs as. **No user-managed keys** (0); it is only ever impersonated. |
-| LiteLLM keys | LiteLLM (master key in Secret `litellm-master-key`, virtual keys in its database) | Who may call the models on-prem. Google never sees them; a virtual key can be limited to some models. |
+| Gateway API keys | Vault `mini-platform/agentgateway-api-keys`, one per client | Who may call the gateway on-prem. Google never sees them. OPA limits each client to some models and tools. |
 
 #### What `litellm-stt` may do
 
@@ -263,7 +309,7 @@ Its only roles, all on the hub project:
 |------|-------------|---------|
 | `roles/speech.client` | 13: `speech.recognizers.recognize`, `speech.adaptations.execute`, `speech.operations.wait`, and get/list on recognizers, phrase sets, custom classes, operations, locations. No create, update or delete. | `chirp-3` |
 | `projects/mini-cloud-499820/roles/litellmVertexCaller` (custom) | `aiplatform.endpoints.predict` only | Gemini chat and TTS (`generateContent`) and Gemini Live (`BidiGenerateContent`); any Gemini model added later needs nothing more. `roles/aiplatform.user` would add creating and deleting Vertex resources. |
-| `roles/serviceusage.serviceUsageConsumer` | `serviceusage.services.use` (and read) | LiteLLM sends `x-goog-user-project`, so each call bills the hub as quota project. Text-to-Speech needs nothing more: it has no permission of its own. |
+| `roles/serviceusage.serviceUsageConsumer` | `serviceusage.services.use` (and read) | For callers that send `x-goog-user-project`, billing the hub as quota project. Text-to-Speech needs nothing more: it has no permission of its own. |
 
 It can't read storage, BigQuery or secrets, can't change IAM, and can't create Vertex endpoints,
 recognizers or any other resource.
@@ -272,21 +318,24 @@ recognizers or any other resource.
 
 On the Google side, two checks must both pass:
 
-1. **The provider's attribute condition** rejects any token whose subject isn't
-   `system:serviceaccount:mini-platform:litellm` (`rejected by the attribute condition`).
-2. **The service account's own policy** has one binding: `roles/iam.workloadIdentityUser` for
-   `principal://iam.googleapis.com/projects/311800512343/locations/global/workloadIdentityPools/onprem-k8s/subject/system:serviceaccount:mini-platform:litellm`.
+1. **The provider's attribute condition** rejects any token whose subject isn't in `k8s_subjects`
+   (`rejected by the attribute condition`).
+2. **The service account's own policy** has one `roles/iam.workloadIdentityUser` binding per
+   subject, for example
+   `principal://iam.googleapis.com/projects/311800512343/locations/global/workloadIdentityPools/onprem-k8s/subject/system:serviceaccount:mini-platform:agentgateway-proxy`.
 
 Hub project owners (your user and the `automation` service account) can also impersonate it, as
 owners can any service account in the project.
 
-On the Kubernetes side, Google trusts anything holding a valid `litellm` token. Kubernetes has no
-permission for "run as this service account": whoever can create pods in `mini-platform` can start
-one as `litellm`. Checked with `kubectl auth can-i`:
+On the Kubernetes side, Google trusts anything holding a valid `agentgateway-proxy` token.
+Kubernetes has no permission for "run as this service account": whoever can create pods in
+`mini-platform` can start one as `agentgateway-proxy`. The list below was checked with
+`kubectl auth can-i` for the LiteLLM-era account in the same namespace, and holds for any account
+there:
 
-| Who | Can get a `litellm` token by |
-|-----|------------------------------|
-| The kubelet | Mounting it into pods that run as `litellm` (LiteLLM, its migration Job) |
+| Who | Can get the gateway's token by |
+|-----|--------------------------------|
+| The kubelet | Mounting it into the gateway's proxy pods |
 | Argo CD application controller | Creating pods (it deploys the namespace) |
 | JupyterHub `hub` | Creating pods (it spawns user servers) |
 | Spark operator `spark-operator-controller` and `spark-operator-spark` | Creating pods, so a Spark job's driver can start one |
@@ -296,8 +345,9 @@ one as `litellm`. Checked with `kubectl auth can-i`:
 So user code that runs through Spark, or a compromised JupyterHub or kagent controller, could call
 the speech APIs as `litellm-stt`. That's limited to transcribing, synthesizing and calling Gemini,
 billed to the hub. Ways to narrow it, none applied yet:
-- Move LiteLLM to its own namespace and update the attribute condition.
-- An admission policy that admits `serviceAccountName: litellm` only for the LiteLLM pods.
+- Move the gateway to its own namespace and update the attribute condition.
+- An admission policy that admits `serviceAccountName: agentgateway-proxy` only for the gateway's
+  pods.
 - Drop `serviceaccounts/token` from kmcp's namespace role.
 
 #### Lifetimes and revocation
@@ -336,7 +386,7 @@ the resources Terraform creates.
 | Role | Creates |
 |------|---------|
 | `roles/serviceusage.serviceUsageAdmin` | Turns on `speech`, `texttospeech`, `aiplatform`, `sts`, `iamcredentials`, `iam` (plus `compute` and `networkconnectivity` for the private path). Also lets Terraform bill the project as quota project. |
-| `roles/iam.serviceAccountAdmin` | `litellm-stt` and its single `workloadIdentityUser` binding |
+| `roles/iam.serviceAccountAdmin` | `litellm-stt` and its `workloadIdentityUser` bindings, one per subject |
 | `roles/iam.workloadIdentityPoolAdmin` | Pool `onprem-k8s` and provider `minikube`; later JWKS uploads (`refresh-k8s-jwks.sh`) |
 | `roles/iam.roleAdmin` | The custom role `litellmVertexCaller` |
 | `roles/resourcemanager.projectIamAdmin`, **with the condition below** | The three project-level grants to `litellm-stt`, and nothing else |
@@ -358,7 +408,7 @@ the custom role, which also lets it create and delete Vertex resources.
 |------|---------|
 | `roles/compute.networkAdmin` | VPC and subnets, HA VPN gateway, peer gateway, tunnel, Cloud Router and BGP peer, the `all-apis` PSC endpoint (with its Service Directory namespace), the regional endpoint for `aiplatform.eu.rep.googleapis.com` |
 
-Without the VPN, LiteLLM calls the same APIs over the internet with the same keyless login, and
+Without the VPN, the gateway calls the same APIs over the internet with the same keyless login, and
 this role isn't needed. `roles/compute.securityAdmin` isn't needed either: PSC endpoints need no
 firewall rules.
 
@@ -410,7 +460,8 @@ service account holding exactly these roles: a 403 names any missing permission.
 | **Open-weight, managed** (Model Garden, model-as-a-service) | The same open-weight family as on-prem, as a managed API, if offered in `eu` or `europe-west1` | Lets the benchmark compare one model on two platforms, and gives burst capacity for internal work |
 | **Open-weight, self-deployed** | vLLM on a Vertex AI endpoint or GKE with GPUs in the hub, if the model isn't offered as a managed API | Only for a model that must match on-prem exactly and has no managed offer. Check regional GPU availability and quota first; this adds a fixed cost. |
 
-All three use the existing path: tunnel, PSC endpoints, keyless identity. A self-deployed endpoint
+All three use the existing path: tunnel, PSC endpoints, keyless identity, and one more
+`AgentgatewayModel` with a placement in the OPA data. A self-deployed endpoint
 also needs its private IP advertised and a DNS entry, like the regional endpoint.
 
 ---
@@ -432,7 +483,7 @@ sudo systemctl daemon-reload && sudo systemctl restart mini-cloud-vpn frr
 scripts/gcp-psc-dns.sh 10.48.64.2 10.48.65.2
 ```
 
-Then merge the mini-platform-deployment change; Argo CD rolls LiteLLM with the new models.
+Then merge the mini-platform-deployment change; Argo CD rolls the gateway's models and routes.
 
 ## Verify
 
@@ -441,56 +492,64 @@ ip route get 10.48.64.2                       # via 169.254.0.1 dev ipsec0
 ip route get 10.48.65.2                       # same, learned from the subnet advertisement
 sudo nft list table ip mini_cloud_vpn         # snat to the LAN address
 
-KEY=$(kubectl -n mini-platform get secret litellm-master-key -o jsonpath='{.data.PROXY_MASTER_KEY}' | base64 -d)
-kubectl -n mini-platform port-forward svc/litellm 4000:4000 &
-curl -s localhost:4000/v1/audio/transcriptions -H "Authorization: Bearer $KEY" \
-  -F model=chirp-3 -F file=@sample.wav -F language=fr-FR
+# A gateway API key (the admin client; see the deploy repo's docs/agentgateway.md)
+KEY=$(kubectl -n mini-platform exec vault-0 -- vault kv get -field=admin mini-platform/agentgateway-client-keys)
+kubectl -n mini-platform port-forward svc/agentgateway-proxy 8080:80 &
+GW=localhost:8080
 
-curl -s localhost:4000/v1/audio/speech -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"model":"tts-chirp-3-hd","input":"Bonjour depuis le cloud.","voice":"fr-FR-Chirp3-HD-Aoede","response_format":"mp3"}' \
-  -o bonjour.mp3
-
-curl -s localhost:4000/v1/audio/speech -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"model":"gemini-3.8-flash-tts","input":"The tunnel to Belgium works.","voice":"Kore"}' \
-  -o gemini.wav                               # 16-bit mono 24 kHz WAV
-
-curl -s localhost:4000/v1/chat/completions -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+curl -s $GW/v1/chat/completions -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
   -d '{"model":"gemini-3.8-flash","messages":[{"role":"user","content":"What is the capital of Belgium?"}]}'
+
+# Chirp 3, Google's own request shape
+curl -s $GW/google/speech/v2/projects/mini-cloud-499820/locations/eu/recognizers/_:recognize \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d "{\"config\":{\"autoDecodingConfig\":{},\"languageCodes\":[\"fr-FR\"],\"model\":\"chirp_3\"},\"content\":\"$(base64 -w0 sample.wav)\"}"
+
+# Chirp 3 HD voice
+curl -s $GW/google/tts/v1/text:synthesize -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"input":{"text":"Bonjour depuis le cloud."},"voice":{"languageCode":"fr-FR","name":"fr-FR-Chirp3-HD-Aoede"},"audioConfig":{"audioEncoding":"MP3"}}' \
+  | jq -r .audioContent | base64 -d > bonjour.mp3
+
+# Gemini TTS: generateContent with audio output (base64 PCM, 24 kHz mono)
+curl -s $GW/google/vertex-eu/v1/projects/mini-cloud-499820/locations/eu/publishers/google/models/gemini-3.8-flash-tts:generateContent \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"contents":[{"role":"user","parts":[{"text":"The tunnel to Belgium works."}]}],"generationConfig":{"responseModalities":["AUDIO"],"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Kore"}}}}}'
+
+# Policy: Open WebUI's key is internal-class, so DeepSeek is refused with a 403 and the reason
+OWUI=$(kubectl -n mini-platform exec vault-0 -- vault kv get -field=open-webui mini-platform/agentgateway-client-keys)
+curl -s $GW/v1/chat/completions -H "Authorization: Bearer $OWUI" -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Feeding the audio back to `chirp-3` is a quick round trip check. `gemini-live` needs a websocket
-client: connect to `ws://localhost:4000/v1/realtime?model=gemini-live` with the key as a bearer
-token, stream 16-bit PCM in `input_audio_buffer.append` events, and read the
-`conversation.item.input_audio_transcription.*` events.
+The `vault` commands need a Vault token in the pod's environment (`VAULT_TOKEN`).
 
 `sudo tcpdump -ni ipsec0 'host 10.48.64.2 or host 10.48.65.2'` shows the requests leaving through
 the tunnel.
 
 ## Limits and upkeep
 
-- **One minute, 10 MB per request.** LiteLLM uses the synchronous `recognize` method. Longer audio
-  has to be split into clips; Chirp 3's `BatchRecognize` is not wired up.
+- **No OpenAI audio API.** Speech goes through Google's own APIs under `/google/...`. Clients that
+  only speak OpenAI's `/v1/audio/*` need an adapter.
+- **One minute, 10 MB per request** for Chirp 3's synchronous `recognize`. Longer audio needs
+  `BatchRecognize`, which writes to Cloud Storage and isn't set up.
 - **Locations.** Chirp 3, the Gemini 3.8 TTS models and the Gemini chat models run only in
   `global`, `us` or `eu` (none in `europe-west1`); `eu`
   keeps the data in Europe, and the hub's location exception allows only that. Another location
   needs the exception widened, plus DNS entries (and, for Vertex `rep` names, another regional
   endpoint).
-- **Gemini Live.** The websocket goes through the ingress at `litellm.test` too, but sessions are
-  long-lived: proxy timeouts apply. Every turn returns the input transcript and a spoken reply (the
-  model answers; LiteLLM doesn't offer a transcribe-only mode). Tested over two turns in
-  `europe-west1`; Google's GA model has open reports of silent audio in production.
+- **Gemini Live.** The `/google/vertex-europe-west1/` route passes the websocket through, but this
+  path hasn't been tested end to end since the move off LiteLLM.
+- **Model list.** `/v1/models` lists every model to every client. OPA refuses the call; it can't
+  filter the list.
 - **Recreated cluster.** New signing keys: run `infra/onprem/refresh-k8s-jwks.sh` and commit the
   JSON, or every token exchange fails with `invalid_grant`.
-- **Voices.** `tts-chirp-3-hd` needs a Google voice name (`<lang>-Chirp3-HD-<voice>`); the OpenAI
-  names (`alloy`, `nova` …) fall back to older WaveNet voices. The Gemini TTS models take Gemini
-  voice names (`Kore`, `Charon`, `Aoede` …) and always return 16-bit 24 kHz WAV, whatever
-  `response_format` asks for. Through LiteLLM's `/v1/audio/speech`
-  they read the whole input aloud: a lead-in like "Say cheerfully:" is spoken, not obeyed.
+- **Voices.** Chirp 3 HD takes a Google voice name (`<lang>-Chirp3-HD-<voice>`). The Gemini TTS
+  models take Gemini voice names (`Kore`, `Charon`, `Aoede` …) and return 16-bit 24 kHz PCM.
 - **Gemini chat models.** Gemini 4 has one model on Vertex AI, `gemini-4-argon` (no Flash or Pro
   names); its `-cyber-permissive` variant is left out. Gemini 3.1 Pro is preview and served only in `global`, which has no EU
-  data residency, so it isn't offered. Google retires Gemini versions often: LiteLLM's cost map
-  lists `gemini-3.5-flash` until 19 May 2027 and `gemini-3.5-flash-lite` until 21 July 2027. A
-  newer model is one more entry in `litellm-values.yaml` (same location and credentials), as long
+  data residency, so it isn't offered. Google retires Gemini versions often: `gemini-3.5-flash` is
+  listed until 19 May 2027 and `gemini-3.5-flash-lite` until 21 July 2027. A newer model is one more
+  entry in the deploy repo's `agentgateway-config` values plus a placement in the OPA data, as long
   as Google serves it in `eu`.
 - **Tunnel down = no speech.** Cluster DNS sends the API names only to the PSC IPs. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
@@ -532,23 +591,20 @@ Unconfirmed figures:
 - The Gemini rates are the Gemini API's Standard tier. Vertex AI's page didn't render when this was
   written. The regional endpoint's per-GB rate isn't confirmed either.
 
-LiteLLM loads its cost map from upstream at startup; it lists the Gemini 3.8 TTS models ($9 and
-$6 per 1M audio tokens) and Gemini Live ($3 in, $12 out), matching the rates above. The Gemini
-chat rates are taken from that map alone, not from Google's page. LiteLLM records spend for the
-chat models (a one-sentence answer cost $0.00002 to $0.0013) and for Gemini Live (the two-turn
-test: $0.00036). The Gemini TTS models show **$0** in
-`litellm_spend_metric_total`: LiteLLM 1.98's speech bridge doesn't pass Google's token counts on, so
-their cost appears only in Google billing and Cloud Monitoring.
+agentgateway prices each call from its model catalog and exports the result as
+`agentgateway_gen_ai_client_cost_usd_total`, next to the token counts. Google billing stays the
+reference; speech passthrough calls have no tokens and no cost in the gateway's metrics.
 
 ### Watching usage
 
-- **LiteLLM (Prometheus/Grafana in mini-platform):** `litellm_proxy_total_requests_metric_total`
-  by `requested_model` and `status_code`, `litellm_llm_api_latency_metric`,
-  `litellm_spend_metric_total`. Traces go to Tempo and Langfuse.
+- **agentgateway (Prometheus/Grafana in mini-platform, dashboard "Agentgateway"):**
+  `agentgateway_gen_ai_client_token_usage` and `agentgateway_gen_ai_client_cost_usd_total` by
+  `gen_ai_request_model`, `agentgateway_gen_ai_server_time_to_first_token`,
+  `agentgateway_requests_total`. Traces go to Tempo (`agentgateway-proxy`); OPA decisions to Loki.
 - **Google (Cloud Monitoring, free):** `serviceruntime.googleapis.com/api/request_count` for
   `speech.googleapis.com` (method `Speech.Recognize`), `texttospeech.googleapis.com` and
   `aiplatform.googleapis.com`, by response code.
-- No dashboard, alert or budget exists yet for any of the models.
+- No alert or budget exists yet for any of the models.
 
 ---
 
@@ -560,8 +616,8 @@ prompts.
 
 ### 1. Performance, through the gateway
 
-Run from an in-cluster pod, like the earlier benchmark, but against the LiteLLM endpoint, so both
-tiers carry the same gateway and network overhead.
+Run from an in-cluster pod, like the earlier benchmark, but against the agentgateway endpoint, so
+both tiers carry the same gateway, policy check and network overhead.
 
 | Setting | Value |
 |---------|-------|
@@ -609,7 +665,7 @@ what usually makes cloud cheaper for spiky internal traffic.
 
 ### Output
 
-A placement table per use case, which becomes the alias mapping in the gateway:
+A placement table per use case, which becomes a virtual model (alias) in the gateway:
 
 | Use case | Class | Quality bar | Allowed | Chosen | Why |
 |----------|-------|-------------|---------|--------|-----|
@@ -622,19 +678,21 @@ A placement table per use case, which becomes the alias mapping in the gateway:
 
 | Step | Where | Done when |
 |------|-------|-----------|
-| 1. Placement groups, one team per class, fallbacks only inward | LiteLLM values (mini-platform-deployment) | A restricted key gets 401 on every Gemini model; a GCP outage falls back to `qwen3.6-27b` |
-| 2. PII guardrail on `gcp`-group models | LiteLLM values | A test prompt with personal data on an internal key is blocked before leaving |
-| 3. Lock down the gateway identity | mini-platform-deployment: own namespace for LiteLLM, admission policy, kmcp role; this repo: the identity-pool condition | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: litellm` is rejected at admission; kmcp can't request the token (`kubectl auth can-i` says no); only the gateway's pods get a Google token |
-| 4. Hybrid benchmark harness | `tools/` + `docs/benchmarks/` (mini-platform-deployment) | One command runs the performance matrix through the gateway; results in MLflow |
-| 5. Eval sets and on-prem judge | Langfuse datasets, MLflow | Quality scores for 2–3 real use cases on the PoC |
-| 6. Managed open-weight model on Vertex, if offered in `eu` | LiteLLM values; this repo if a new endpoint is needed | Same model compared on both tiers |
-| 7. Production egress controls | Policy-enforcing CNI, NGFW rules, VPC-SC perimeter | Only the gateway reaches the PSC IPs; other projects are unreachable through PSC |
-| 8. B300 validation | Production cluster | The same harness re-run on B300; placement table updated from those numbers |
+| 1. Data class per client, placement per model, per-tool MCP rules | OPA policy and data (`policies/gateway` in mini-platform-deployment), OCP, agentgateway ext_authz | **Done.** A restricted client gets 403 on every Gemini model; an internal client gets 403 on DeepSeek; tests in CI |
+| 2. Fallbacks only inward | agentgateway virtual models | A GCP outage falls back to `qwen3.6-27b`; never the reverse |
+| 3. PII guardrail on `gcp` calls | agentgateway prompt guards (webhook to an on-prem PII detector) | A test prompt with personal data on an internal key is blocked before leaving |
+| 4. Lock down the gateway identity | mini-platform-deployment: own namespace for the gateway, admission policy, kmcp role; this repo: `k8s_subjects` | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: agentgateway-proxy` is rejected at admission; kmcp can't request the token; only the gateway's pods get a Google token |
+| 5. Hybrid benchmark harness | `tools/` + `docs/benchmarks/` (mini-platform-deployment) | One command runs the performance matrix through the gateway; results in MLflow |
+| 6. Eval sets and on-prem judge | Langfuse datasets, MLflow | Quality scores for 2–3 real use cases on the PoC |
+| 7. Managed open-weight model on Vertex, if offered in `eu` | agentgateway config; this repo if a new endpoint is needed | Same model compared on both tiers |
+| 8. Production egress controls | Policy-enforcing CNI, NGFW rules, VPC-SC perimeter | Only the gateway reaches the PSC IPs; other projects are unreachable through PSC |
+| 9. B300 validation | Production cluster | The same harness re-run on B300; placement table updated from those numbers |
 
-Steps 1–5 fit the PoC: single GPU, no new GCP resources (step 3 only edits the existing identity-pool
-condition). Until step 3 is done, the data-class policy can be bypassed from inside the namespace,
-so restricted workloads shouldn't rely on it. Step 6 depends on what Model Garden offers in the EU,
-and step 7 on production hardware and network.
+Steps 2–6 fit the PoC: single GPU, no new GCP resources (step 4 only edits `k8s_subjects`). Until
+step 4 is done, the data-class policy can be bypassed from inside the namespace, so restricted
+workloads shouldn't rely on it. Step 7 depends on what Model Garden offers in the EU, and step 8 on
+production hardware and network.
 
 [bench]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/benchmarks/llm-d-vs-production-stack.md
 [benchpod]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/tools/vllm-bench.yaml
+[agw]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/agentgateway.md

@@ -77,7 +77,7 @@ moved {
 resource "google_service_account" "stt" {
   project      = var.project_id
   account_id   = var.service_account_id
-  display_name = "Speech-to-Text caller (on-prem LiteLLM, via WIF)"
+  display_name = "Google model caller (on-prem agentgateway, via WIF)"
 }
 
 # speech.client covers recognize; serviceUsageConsumer because callers bill the
@@ -95,7 +95,7 @@ resource "google_project_iam_member" "stt" {
 resource "google_project_iam_custom_role" "vertex_caller" {
   project     = var.project_id
   role_id     = "litellmVertexCaller"
-  title       = "LiteLLM Vertex AI caller"
+  title       = "Vertex AI caller (on-prem gateway)"
   description = "Call Gemini models on Vertex AI, nothing else."
   permissions = ["aiplatform.endpoints.predict"]
 }
@@ -134,9 +134,4 @@ resource "google_service_account_iam_member" "stt_wif" {
   service_account_id = google_service_account.stt.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.k8s.name}/subject/${each.value}"
-}
-
-moved {
-  from = google_service_account_iam_member.stt_wif
-  to   = google_service_account_iam_member.stt_wif["system:serviceaccount:mini-platform:litellm"]
 }

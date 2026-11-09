@@ -157,7 +157,7 @@ variable "lakehouse_grant_quota_access" {
   default = true
 }
 
-# --- Speech services for on-prem (LiteLLM chirp-3, TTS and Gemini models, docs/gcp/ai-inference.md) ---
+# --- Google models for on-prem (agentgateway: Gemini, speech; docs/gcp/ai-inference.md) ---
 
 variable "enable_stt" {
   type    = bool
