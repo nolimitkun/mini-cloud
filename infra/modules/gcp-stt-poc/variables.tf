@@ -34,7 +34,7 @@ variable "k8s_subjects" {
   # agentgateway (docs/gcp/ai-inference.md); LiteLLM's entry goes after.
   default = [
     "system:serviceaccount:mini-platform:litellm",
-    "system:serviceaccount:agentgateway-system:agentgateway-proxy",
+    "system:serviceaccount:mini-platform:agentgateway-proxy",
   ]
   description = "The only Kubernetes service accounts allowed to impersonate the SA."
   validation {
