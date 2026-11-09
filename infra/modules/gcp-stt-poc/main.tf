@@ -121,8 +121,8 @@ resource "google_iam_workload_identity_pool_provider" "k8s" {
   attribute_mapping = {
     "google.subject" = "assertion.sub"
   }
-  # Only the gateway's service account; any other pod's token is rejected.
-  attribute_condition = "assertion.sub == '${var.k8s_subject}'"
+  # Only the gateways' service accounts; any other pod's token is rejected.
+  attribute_condition = "assertion.sub in [${join(", ", [for s in var.k8s_subjects : "'${s}'"])}]"
   oidc {
     issuer_uri = var.k8s_issuer
     jwks_json  = var.k8s_jwks
@@ -130,7 +130,13 @@ resource "google_iam_workload_identity_pool_provider" "k8s" {
 }
 
 resource "google_service_account_iam_member" "stt_wif" {
+  for_each           = toset(var.k8s_subjects)
   service_account_id = google_service_account.stt.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.k8s.name}/subject/${var.k8s_subject}"
+  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.k8s.name}/subject/${each.value}"
+}
+
+moved {
+  from = google_service_account_iam_member.stt_wif
+  to   = google_service_account_iam_member.stt_wif["system:serviceaccount:mini-platform:litellm"]
 }
