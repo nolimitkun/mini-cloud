@@ -30,10 +30,9 @@ variable "k8s_jwks" {
 
 variable "k8s_subjects" {
   type = list(string)
-  # LiteLLM and agentgateway's proxy, side by side while clients move to
-  # agentgateway (docs/gcp/ai-inference.md); LiteLLM's entry goes after.
+  # The gateway's proxy (agentgateway, docs/gcp/ai-inference.md). Its
+  # ServiceAccount is named after its Gateway resource.
   default = [
-    "system:serviceaccount:mini-platform:litellm",
     "system:serviceaccount:mini-platform:agentgateway-proxy",
   ]
   description = "The only Kubernetes service accounts allowed to impersonate the SA."

@@ -26,7 +26,7 @@ circuit, with a lakehouse and on-prem access to Google's speech and Gemini model
 flowchart TB
     subgraph onprem["On-prem private cloud (hub) · 10.0.0.0/12 · ASN 65000"]
         core["Core routing / BGP · NGFW<br/>DNS corp.internal · IPAM · IdP / PKI"]
-        k8s["Kubernetes platform<br/>(LiteLLM, data engines …)"]
+        k8s["Kubernetes platform<br/>(agentgateway + OPA, data engines …)"]
     end
     colo["Colocation edge<br/>edge routers · cross-connects"]
     core --- colo

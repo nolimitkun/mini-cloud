@@ -2,7 +2,7 @@
 # Re-upload the on-prem cluster's public signing keys to the GCP workload
 # identity provider (onprem-k8s/minikube). Needed after the cluster is
 # recreated (e.g. `minikube delete` / deploy-minikube.sh --reset): new keys
-# sign the LiteLLM pod's token, and GCP rejects it until it knows them.
+# sign the gateway pod's token, and GCP rejects it until it knows them.
 #
 # Writes infra/stacks/gcp-poc/onprem-k8s-jwks.json, then plans and (after a
 # confirmation; --yes skips it) applies the stack. Commit the JSON afterwards so

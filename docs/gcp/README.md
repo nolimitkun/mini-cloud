@@ -24,7 +24,7 @@ flowchart LR
     subgraph onprem["On-prem hub · LAN 192.168.1.0/24 · ASN 65000"]
         gw["strongSwan + FRR host<br/>IPsec, BGP, source NAT"]
         subgraph k8s["mini-platform Kubernetes cluster"]
-            litellm["LiteLLM gateway<br/>placement policy · speech + Gemini models"]
+            gateway["agentgateway + OPA<br/>placement policy · Gemini, speech, MCP tools"]
             vllm["vLLM on-prem inference<br/>Qwen3.6-27B · 1× RTX 5090"]
             engines["Trino · Spark · Jupyter"]
             dns["CoreDNS: Google API names<br/>pinned to PSC IPs"]
@@ -52,11 +52,11 @@ flowchart LR
     end
 
     gw <==>|"IPsec + BGP over the internet"| vpn
-    litellm -->|"restricted data stays"| vllm
-    litellm -.->|"token exchange"| wif
+    gateway -->|"restricted data stays"| vllm
+    gateway -.->|"token exchange"| wif
     wif -.-> sa
-    litellm -->|"tunnel"| psc
-    litellm -->|"tunnel"| rep
+    gateway -->|"tunnel"| psc
+    gateway -->|"tunnel"| rep
     psc --> apis
     rep --> apis
     sa -.->|"acts as"| apis
@@ -128,7 +128,7 @@ These hub pieces serve every use case. A new use case should reuse them rather t
 |----------|---------|------|-----|
 | **Hybrid connectivity**: the LAN as on-prem hub over IPsec + BGP | hub | (it is the foundation) | [hub-connectivity.md](hub-connectivity.md) |
 | **Lakehouse**: GCS data lake + Iceberg REST catalog, BigQuery through federation | spoke | Shared VPC subnet, guardrails, quota project | [spoke-lakehouse.md](spoke-lakehouse.md) |
-| **AI inference**: one LiteLLM gateway in front of on-prem vLLM and Google's speech and Gemini models (Chirp 3, Cloud TTS, Gemini TTS, Gemini Live, Gemini chat), placed by data class (design) and chosen by benchmark (design) | on-prem + hub (APIs, SA, endpoints) | Tunnel, both PSC endpoints, on-prem DNS, `onprem-k8s` pool, `eu` location exception | [ai-inference.md](ai-inference.md) |
+| **AI inference**: one gateway (agentgateway, with OPA deciding each request) in front of on-prem vLLM, Google's Gemini and speech models (Gemini chat, Chirp 3, Cloud TTS, Gemini TTS, Gemini Live) and the cluster's MCP tools, placed by data class (running) and chosen by benchmark (design) | on-prem + hub (APIs, SA, endpoints) | Tunnel, both PSC endpoints, on-prem DNS, `onprem-k8s` pool, `eu` location exception | [ai-inference.md](ai-inference.md) |
 | **Live diagram**: SVG of the deployed resources, regenerated on every change | tooling | State bucket, `github` pool | [live-diagram.md](live-diagram.md) |
 
 How traffic moves for each:
@@ -138,9 +138,9 @@ connectivity  LAN host ⇄ ipsec0 ⇄ HA VPN ⇄ vpc-poc subnets (hub and spoke)
 lakehouse     feeder SA (hub) → GCS managed folder / Iceberg catalog commit   (spoke project)
               engine → Iceberg REST catalog → vended token → GCS              (spoke project)
               BigQuery → BigLake metastore → same tables                      (spoke project)
-AI (GCP)      LiteLLM pod → CoreDNS → 10.48.64.2 or 10.48.65.2 → tunnel → PSC → Google API
+AI (GCP)      agentgateway pod → CoreDNS → 10.48.64.2 or 10.48.65.2 → tunnel → PSC → Google API
               (identity: pod token → STS → litellm-stt token, no key)
-AI (routing)  app → LiteLLM (key → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
+AI (routing)  app → agentgateway (key → client) → OPA (client → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
 diagram       GitHub Actions → github pool → read state bucket → commit SVG
 ```
 
@@ -200,7 +200,7 @@ $3,520 a month for GCP ([landing-zone.md](landing-zone.md#cost)).
 | 3 | On-prem strongSwan + FRR; check BGP | [hub-connectivity.md §6](hub-connectivity.md#6-verification) |
 | 4 | Spoke: `enable_spoke = true`, `spoke_mode = "shared_vpc"` | [hub-connectivity.md §6.1](hub-connectivity.md#61-gcp-hub-and-spoke-optional) |
 | 5 | Lakehouse: comes with the spoke (`enable_lakehouse` defaults to `true`), then `make seed-lakehouse` | [spoke-lakehouse.md §5](spoke-lakehouse.md#5-deploy-order) |
-| 6 | AI inference, GCP tier: `enable_stt` defaults to `true` (so step 2 already builds it), then cluster DNS and the LiteLLM models | [ai-inference.md](ai-inference.md#bring-up) |
+| 6 | AI inference, GCP tier: `enable_stt` defaults to `true` (so step 2 already builds it), then cluster DNS and the gateway's models | [ai-inference.md](ai-inference.md#bring-up) |
 
 Steps 4–6 are toggles on the same stack; set `enable_stt = false` for a network-only first apply. `make apply-poc` applies it and refreshes the
 live diagram.

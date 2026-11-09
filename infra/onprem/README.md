@@ -52,7 +52,7 @@ Two things break the tunnel without any config change:
   replaced) and asks before applying, syncs the `GCP_POC_TFVARS` secret for the CI plan job,
   updates the strongSwan local id, and recreates `ipsec0` if it's missing.
 - **Recreated Kubernetes cluster** (`minikube delete`, `deploy-minikube.sh --reset`). New
-  service-account signing keys mean GCP rejects LiteLLM's token for every Google model. Run
+  service-account signing keys mean GCP rejects the gateway's token for every Google model. Run
   `bash refresh-k8s-jwks.sh` and commit `onprem-k8s-jwks.json` (docs/gcp/ai-inference.md).
 
 ## Verify
