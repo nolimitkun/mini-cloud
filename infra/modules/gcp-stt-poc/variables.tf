@@ -28,10 +28,19 @@ variable "k8s_jwks" {
   description = "The cluster's public signing keys (kubectl get --raw /openid/v1/jwks). Public data; changes when the cluster is recreated."
 }
 
-variable "k8s_subject" {
-  type        = string
-  default     = "system:serviceaccount:mini-platform:litellm"
-  description = "The only Kubernetes service account allowed to impersonate the SA."
+variable "k8s_subjects" {
+  type = list(string)
+  # LiteLLM and agentgateway's proxy, side by side while clients move to
+  # agentgateway (docs/gcp/ai-inference.md); LiteLLM's entry goes after.
+  default = [
+    "system:serviceaccount:mini-platform:litellm",
+    "system:serviceaccount:agentgateway-system:agentgateway-proxy",
+  ]
+  description = "The only Kubernetes service accounts allowed to impersonate the SA."
+  validation {
+    condition     = length(var.k8s_subjects) > 0 && alltrue([for s in var.k8s_subjects : can(regex("^system:serviceaccount:[a-z0-9-]+:[a-z0-9-]+$", s))])
+    error_message = "Each k8s_subjects entry must be system:serviceaccount:<namespace>:<name>."
+  }
 }
 
 variable "manage_location_policy" {
