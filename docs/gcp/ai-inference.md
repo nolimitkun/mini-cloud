@@ -11,7 +11,7 @@ On-prem applications chat, transcribe, speak and call shared tools through **one
 [mini-platform](https://github.com/nolimitkun/mini-platform-deployment) cluster's
 **[agentgateway](https://agentgateway.dev)**. It serves every chat model on one OpenAI-compatible
 endpoint, passes Google's speech APIs through with a keyless login, and merges the cluster's MCP
-servers into one tool endpoint. Before routing, it asks **OPA** whether this client may use this
+servers into one tool endpoint. Before routing, it asks **OPA** whether the caller's project may use this
 model or tool. The policy is Rego in Git; the **OPA Control Plane (OCP)** builds it into bundles that
 OPA loads. **agentregistry** is the catalog of tools and agents. agentgateway replaced LiteLLM in
 November 2026; the deploy repo's [`docs/agentgateway.md`][agw] covers its configuration.
@@ -23,14 +23,17 @@ Behind the gateway sit two tiers:
   private endpoints with no key.
 
 The gateway decides where each request may run, from the data's class, not from the caller's
-preference. Where both tiers are allowed, a benchmark picks the model.
+preference. Where both tiers are allowed, the project's routing rule picks the model for `auto`
+(cheapest, fastest, by prompt type, or fixed); the benchmark below informs those rules.
 
 **Status:**
 - **Running:** both tiers, behind agentgateway. vLLM serves Qwen3.6-27B on one RTX 5090, with a
   measured benchmark in mini-platform-deployment. The Gemini chat models and Google's speech APIs
   go over the VPN.
-- **Running:** the placement policy in OPA: data class per client, placement per model, per-tool
-  rules for MCP, with tests in CI.
+- **Running:** the placement policy in OPA: data class per project, placement per model, per-tool
+  rules for MCP, with tests in CI. Per project also: model selection for `auto` (with the vLLM
+  Semantic Router for prompt type), rate limits and a spend budget, and a filtered model list
+  ([design record][mpp]).
 - **Designed, not built:** inward-only fallback, a PII guardrail, the egress controls and the hybrid
   benchmark; see [Plan](#plan).
 
@@ -41,7 +44,7 @@ preference. Where both tiers are allowed, a benchmark picks the model.
 ```mermaid
 flowchart LR
     subgraph onprem["On-prem (mini-platform cluster)"]
-        apps["Apps, agents, Open WebUI<br/>(API key per client)"]
+        apps["Apps, agents, Open WebUI<br/>(API keys per project)"]
         subgraph gwbox["agentgateway: policy point"]
             keys["API key check"]
             authz["ext_authz → OPA<br/>data class · model · MCP tool"]
@@ -73,10 +76,10 @@ flowchart LR
 
 The gateway is the only path to either tier. Everything else hangs off that:
 - Callers never get an engine URL or a Google credential (in the PoC the namespace still leaks the gateway's identity; see [Egress](#egress-making-the-gateway-the-only-door)).
-- Each client has its own API key; the key carries the client's name, and OPA maps the name to a
-  data class.
+- Every API key belongs to a project (`projects/<id>.yaml` in the deploy repo); the key carries
+  `{project, key_id}`, and OPA maps the project to a data class. A project can hold several keys.
 - Each model, and each Google API, has one placement: `onprem`, `gcp` or `external`.
-- A client gets only the placements its class allows. Anything not allowed is denied with a 403 that
+- A project gets only the placements its class allows. Anything not allowed is denied with a 403 that
   gives the reason.
 
 ---
@@ -120,14 +123,14 @@ API key. It is neither on-prem nor in the EU, so its placement is `external`: pu
 named exceptions. kagent and HolmesGPT have one, for cluster state and telemetry.
 
 **Tools.** Grafana MCP and kagent's tool server sit behind the gateway as one MCP endpoint at `/mcp`.
-OPA decides which client may call which tool. agentregistry lists that endpoint.
+OPA decides which project may call which tool. agentregistry lists that endpoint.
 
 How each GCP call travels:
 
 ```
 client (Open WebUI, kagent, curl …) with its gateway API key
   → agentgateway   POST /v1/chat/completions  model=gemini-4-argon
-       API key → client name → OPA: class internal, placement gcp → allow
+       API key → project → OPA: class internal, placement gcp → allow
        pod token ──STS──▶ short-lived token for litellm-stt@  (no key file)
   → aiplatform.eu.rep.googleapis.com  (cluster DNS → 10.48.65.2, regional PSC endpoint)
   → IPsec tunnel → Vertex AI generateContent, location eu
@@ -171,28 +174,31 @@ Rules that hold in every class:
 ### How the gateway enforces it
 
 agentgateway calls OPA (the Envoy ext_authz protocol, over gRPC) before routing every request, with
-the request body and the client's name. OPA's answer is final; if OPA is down, the gateway denies
+the request body and the key's project and key id. OPA's answer is final; if OPA is down, the gateway denies
 everything.
 
 | Mechanism | Where | Effect |
 |-----------|-------|--------|
-| **A key per client** | Vault → agentgateway `apiKeyAuthentication`; each entry carries `{"client": "<name>"}` | No key, 401. The client name goes to OPA with each request. |
-| **Data class per client** | `policies/gateway/data.json`: `clients` | `restricted` and `confidential` → `onprem`; `internal` → `onprem`, `gcp`; `public` → also `external` |
-| **Placement per model and Google API** | `data.json`: `models`, `google_apis` | A model or API without a placement is denied, so a new model is blocked until someone places it |
-| **Named exceptions** | `data.json`: `exceptions`, each with an owner and a reason | Today: kagent and HolmesGPT may use `deepseek-v4-pro` |
-| **MCP tools per client** | `data.json`: `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
+| **Keys per project** | `projects/<id>.yaml` lists key ids; Vault → agentgateway `apiKeyAuthentication`, each entry carrying `{"project": ..., "key_id": ...}` | No key, 401. A key id its project doesn't list, 403, so dropping an id revokes the key. |
+| **Data class per project** | `projects/<id>.yaml`: `data_class`, optional `placement` and `models.allow` that only narrow it; classes in `policies/gateway/data.json` | `restricted` and `confidential` → `onprem`; `internal` → `onprem`, `gcp`; `public` → also `external` |
+| **Placement per model and Google API** | `catalog/models.yaml`, generated into the bundle as `data.catalog` | A model or API without a placement is denied, so a new model is blocked until someone places it |
+| **Named exceptions** | `projects/_exceptions.yaml`, each with an owner and a reason | Today: kagent and HolmesGPT may use `deepseek-v4-pro` |
+| **MCP tools per project** | `projects/<id>.yaml`: `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
+| **Model for `auto`** | `projects/<id>.yaml`: `routing`; `policies/gateway/select.rego` | The gateway asks OPA which model `auto` means for the project, always one it may use |
+| **Limits and budget** | `projects/<id>.yaml`: `limits`, `budget`; a rate-limit service with Redis | 429 once the project passes its requests per minute or 30-day spend |
 | **Policy delivery** | OCP builds `policies/gateway` from `main` into a bundle in MinIO; OPA polls it | A merged policy change is live within about a minute, with no redeploy. The bundle's manifest names the Git commit. |
 | **Tests** | `policies/gateway/authz_test.rego`, `opa test` in CI | Every rule above has a test |
 
 A denied call gets a 403 that says why, for example
-`{"error":{"message":"model deepseek-v4-pro is not allowed for internal data","type":"policy_denied"}}`.
+`{"error":{"message":"model deepseek-v4-pro is not allowed for project open-webui (internal data)","type":"policy_denied"}}`.
 
 Not built yet, from the original design:
 - **Inward-only fallback.** agentgateway's virtual models (`failover`) can send a Gemini request to
   `qwen3.6-27b` when GCP fails. Nothing is set up yet.
 - **PII guardrail on cloud-bound calls.** agentgateway has prompt guards (regex, a webhook, Model
   Armor). None is set up yet.
-- **Role aliases** (`chat-default`, `chat-sensitive`): virtual models again.
+- **Role aliases** (`chat-default`, `chat-sensitive`): virtual models again. The `auto` model,
+  chosen per project by OPA, covers part of this.
 
 ### Egress: making the gateway the only door
 
@@ -299,7 +305,7 @@ Everything below was read back from the hub project and the cluster on 2026-11-0
 | `system:serviceaccount:mini-platform:agentgateway-proxy` | Kubernetes service account, created by the agentgateway controller for the `agentgateway-proxy` Gateway | What the gateway's proxy runs as. Its projected token is the only credential on-prem. |
 | Pool `onprem-k8s`, provider `minikube` | Workload identity federation, hub project | Trusts tokens signed by the uploaded cluster keys, issuer `https://kubernetes.default.svc.cluster.local`. Mapping `google.subject = assertion.sub`; condition `assertion.sub in [...]` over `k8s_subjects`. No `allowedAudiences`, so the token's audience must be the provider's own name (which the projected volume requests). |
 | `litellm-stt@mini-cloud-499820.iam.gserviceaccount.com` | Google service account, hub project | The identity every Google call runs as. **No user-managed keys** (0); it is only ever impersonated. |
-| Gateway API keys | Vault `mini-platform/agentgateway-api-keys`, one per client | Who may call the gateway on-prem. Google never sees them. OPA limits each client to some models and tools. |
+| Gateway API keys | Vault `mini-platform/agentgateway-api-keys`, one per key id in a project file | Who may call the gateway on-prem. Google never sees them. OPA limits each project to some models and tools. |
 
 #### What `litellm-stt` may do
 
@@ -492,7 +498,7 @@ ip route get 10.48.64.2                       # via 169.254.0.1 dev ipsec0
 ip route get 10.48.65.2                       # same, learned from the subnet advertisement
 sudo nft list table ip mini_cloud_vpn         # snat to the LAN address
 
-# A gateway API key (the admin client; see the deploy repo's docs/agentgateway.md)
+# A gateway API key (the admin project; see the deploy repo's docs/agentgateway.md)
 KEY=$(kubectl -n mini-platform exec vault-0 -- vault kv get -field=admin mini-platform/agentgateway-client-keys)
 kubectl -n mini-platform port-forward svc/agentgateway-proxy 8080:80 &
 GW=localhost:8080
@@ -678,7 +684,7 @@ A placement table per use case, which becomes a virtual model (alias) in the gat
 
 | Step | Where | Done when |
 |------|-------|-----------|
-| 1. Data class per client, placement per model, per-tool MCP rules | OPA policy and data (`policies/gateway` in mini-platform-deployment), OCP, agentgateway ext_authz | **Done.** A restricted client gets 403 on every Gemini model; an internal client gets 403 on DeepSeek; tests in CI |
+| 1. Data class per project, placement per model, per-tool MCP rules | OPA policy and data (`policies/gateway` and `projects/` in mini-platform-deployment), OCP, agentgateway ext_authz | **Done.** A restricted project gets 403 on every Gemini model; an internal project gets 403 on DeepSeek; tests in CI. Also done: `auto` routing, limits, budgets and alerts per project ([design record][mpp]) |
 | 2. Fallbacks only inward | agentgateway virtual models | A GCP outage falls back to `qwen3.6-27b`; never the reverse |
 | 3. PII guardrail on `gcp` calls | agentgateway prompt guards (webhook to an on-prem PII detector) | A test prompt with personal data on an internal key is blocked before leaving |
 | 4. Lock down the gateway identity | mini-platform-deployment: own namespace for the gateway, admission policy, kmcp role; this repo: `k8s_subjects` | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: agentgateway-proxy` is rejected at admission; kmcp can't request the token; only the gateway's pods get a Google token |
@@ -696,3 +702,4 @@ production hardware and network.
 [bench]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/benchmarks/llm-d-vs-production-stack.md
 [benchpod]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/tools/vllm-bench.yaml
 [agw]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/agentgateway.md
+[mpp]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/multi-project-policy.md
