@@ -140,7 +140,7 @@ lakehouse     feeder SA (hub) → GCS managed folder / Iceberg catalog commit   
               BigQuery → BigLake metastore → same tables                      (spoke project)
 AI (GCP)      agentgateway pod → CoreDNS → 10.48.64.2 or 10.48.65.2 → tunnel → PSC → Google API
               (identity: pod token → STS → litellm-stt token, no key)
-AI (routing)  app → agentgateway (key → client) → OPA (client → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
+AI (routing)  app → agentgateway (key → project) → OPA (project → data class) → on-prem vLLM, or (internal/public only) → PSC → Vertex AI
 diagram       GitHub Actions → github pool → read state bucket → commit SVG
 ```
 
