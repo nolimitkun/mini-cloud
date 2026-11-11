@@ -168,7 +168,8 @@ Rules that hold in every class:
 - **Residency.** GCP models run in `eu` or `europe-west1` only, as today. That is already enforced
   by the org's location policy plus the hub's `eu` exception.
 - **Logs stay on-prem.** The gateway's traces go to Tempo, the clients' own traces to Langfuse, and
-  OPA's decision log to Loki (with request bodies and API keys masked), all on-prem. Restricted
+  OPA's decision log to Loki, all on-prem. The decision log keeps who asked and for which model
+  or MCP tool; prompts, tool arguments and API keys are masked. Restricted
   prompts never leave, even as telemetry.
 
 ### How the gateway enforces it
@@ -186,7 +187,7 @@ everything.
 | **MCP tools per project** | `projects/<id>.yaml`: `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
 | **Model for `auto`** | `projects/<id>.yaml`: `routing`; `policies/gateway/select.rego` | The gateway asks OPA which model `auto` means for the project, always one it may use |
 | **Limits and budget** | `projects/<id>.yaml`: `limits`, `budget`; a rate-limit service with Redis | 429 once the project passes its requests per minute or 30-day spend |
-| **Policy delivery** | OCP builds `policies/gateway` from `main` into a bundle in MinIO; OPA polls it | A merged policy change is live within about a minute, with no redeploy. The bundle's manifest names the Git commit. |
+| **Policy delivery** | OCP builds two bundles from `main` into MinIO: `gateway-policy` (the Rego, `policies/gateway`) and `gateway-projects` (one data file per project, `policies/gateway-projects`); OPA polls both | A merged policy or project change is live within about a minute, with no redeploy (36 s measured for a project change). A project change touches only its own file. `scripts/policy-replay.py` replays recent decisions against a change before merge |
 | **Tests** | `policies/gateway/authz_test.rego`, `opa test` in CI | Every rule above has a test |
 
 A denied call gets a 403 that says why, for example
@@ -214,7 +215,7 @@ Policy in the gateway only counts if nothing can go around it.
 So in the PoC the gateway is not yet the only door. A Spark job, a notebook spawned by JupyterHub,
 or a compromised kagent controller can obtain the `agentgateway-proxy` token, trade it for the hub's
 Google credentials and call Gemini directly: no data-class check. Without that token, a
-pod that reaches the PSC IP can't call anything. Locking down the gateway identity (plan step 3)
+pod that reaches the PSC IP can't call anything. Locking down the gateway identity (plan step 4)
 closes the main hole and fits the PoC; the network controls in the right-hand column close the
 rest in production.
 
@@ -545,8 +546,6 @@ the tunnel.
   endpoint).
 - **Gemini Live.** The `/google/vertex-europe-west1/` route passes the websocket through, but this
   path hasn't been tested end to end since the move off LiteLLM.
-- **Model list.** `/v1/models` lists every model to every client. OPA refuses the call; it can't
-  filter the list.
 - **Recreated cluster.** New signing keys: run `infra/onprem/refresh-k8s-jwks.sh` and commit the
   JSON, or every token exchange fails with `invalid_grant`.
 - **Voices.** Chirp 3 HD takes a Google voice name (`<lang>-Chirp3-HD-<voice>`). The Gemini TTS
@@ -555,8 +554,8 @@ the tunnel.
   names); its `-cyber-permissive` variant is left out. Gemini 3.1 Pro is preview and served only in `global`, which has no EU
   data residency, so it isn't offered. Google retires Gemini versions often: `gemini-3.5-flash` is
   listed until 19 May 2027 and `gemini-3.5-flash-lite` until 21 July 2027. A newer model is one more
-  entry in the deploy repo's `agentgateway-config` values plus a placement in the OPA data, as long
-  as Google serves it in `eu`.
+  entry in the deploy repo's `catalog/models.yaml`, with its placement; `gen-catalog.py` generates
+  the gateway's model list and the OPA data from it. That works as long as Google serves it in `eu`.
 - **Tunnel down = no speech.** Cluster DNS sends the API names only to the PSC IPs. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
   works that way, since the APIs are public, only the private path is lost.
@@ -610,7 +609,10 @@ reference; speech passthrough calls have no tokens and no cost in the gateway's 
 - **Google (Cloud Monitoring, free):** `serviceruntime.googleapis.com/api/request_count` for
   `speech.googleapis.com` (method `Speech.Recognize`), `texttospeech.googleapis.com` and
   `aiplatform.googleapis.com`, by response code.
-- No alert or budget exists yet for any of the models.
+- **Budgets and alerts (on-prem):** every project has a 30-day spend budget, enforced by the
+  rate-limit service (429 when spent), and Prometheus alerts forecast it, plus project
+  rate-limited and provider-throttled. Nothing is set on the GCP side yet: no billing budget or
+  billing export.
 
 ---
 
