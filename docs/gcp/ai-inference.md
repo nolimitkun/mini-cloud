@@ -13,8 +13,9 @@ On-prem applications chat, transcribe, speak and call shared tools through **one
 **[agentgateway](https://agentgateway.dev)**. It serves every chat model on one OpenAI-compatible
 endpoint, passes Google's speech APIs through with a keyless login, and merges the cluster's MCP
 servers into one tool endpoint. Before routing, it asks **OPA** whether the caller's project may use this
-model or tool. The policy is Rego in Git; the **OPA Control Plane (OCP)** builds it into bundles that
-OPA loads. **agentregistry** is the catalog of tools and agents. agentgateway replaced LiteLLM in
+model or tool. The policy is Rego in Git and each project's data lives in a **project registry**,
+where every change is approved by policy; both are published as signed bundles that OPA verifies
+and loads. **agentregistry** is the catalog of tools and agents. agentgateway replaced LiteLLM in
 November 2026; the deploy repo's [`docs/agentgateway.md`][agw] covers its configuration.
 
 Behind the gateway sit two tiers:
@@ -53,7 +54,7 @@ flowchart LR
             authz["ext_authz → OPA<br/>data class · model · MCP tool"]
         end
         opa["OPA"]
-        ocp["OCP<br/>(Rego from Git → MinIO)"]
+        ocp["Signed bundles via MinIO<br/>policy build (Rego from Git)<br/>project registry (projects, approvals)"]
         reg["agentregistry<br/>(catalog)"]
         mcp["MCP servers<br/>Grafana · kagent tools"]
         subgraph tier1["On-prem inference"]
@@ -183,14 +184,15 @@ everything.
 
 | Mechanism | Where | Effect |
 |-----------|-------|--------|
-| **Keys per project** | `projects/<id>.yaml` lists key ids; Vault → agentgateway `apiKeyAuthentication`, each entry carrying `{"project": ..., "key_id": ...}` | No key, 401. A key id its project doesn't list, 403, so dropping an id revokes the key. |
-| **Data class per project** | `projects/<id>.yaml`: `data_class`, optional `placement` and `models.allow` that only narrow it; classes in `policies/gateway/data.json` | `restricted` and `confidential` → `onprem`; `internal` → `onprem`, `gcp`; `public` → also `external` |
+| **Project records** | The project registry (Postgres; imported from `projects/*.yaml`): each project, agent and exception. Every change is a change request, validated, approved by the roles `policies/gateway/portal.rego` names (owner, cost owner, security, platform; never its author) and published as the signed `gateway-projects` bundle | A change goes live within about a minute of its last approval, after a replay of recent decisions shows it changes nothing for other projects |
+| **Keys per project** | The project's key ids; Vault → agentgateway `apiKeyAuthentication`, each entry carrying `{"project": ..., "key_id": ...}` | No key, 401. A key id its project doesn't list, 403, so dropping an id revokes the key. |
+| **Data class per project** | The project's `data_class`, optional `placement` and `models.allow` that only narrow it; classes in `policies/gateway/data.json` | `restricted` and `confidential` → `onprem`; `internal` → `onprem`, `gcp`; `public` → also `external` |
 | **Placement per model and Google API** | `catalog/models.yaml`, generated into the bundle as `data.catalog` | A model or API without a placement is denied, so a new model is blocked until someone places it |
-| **Named exceptions** | `projects/_exceptions.yaml`, each with an owner and a reason | Today: kagent and HolmesGPT may use `deepseek-v4-pro` |
-| **MCP tools per project** | `projects/<id>.yaml`: `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
-| **Model for `auto`** | `projects/<id>.yaml`: `routing`; `policies/gateway/select.rego` | The gateway asks OPA which model `auto` means for the project, always one it may use |
-| **Limits and budget** | `projects/<id>.yaml`: `limits`, `budget`; a rate-limit service with Redis | 429 once the project passes its requests per minute or 30-day spend |
-| **Policy delivery** | OCP builds two bundles from `main` into MinIO: `gateway-policy` (the Rego, `policies/gateway`) and `gateway-projects` (one data file per project, `policies/gateway-projects`); OPA polls both | A merged policy or project change is live within about a minute, with no redeploy (36 s measured for a project change). A project change touches only its own file. `scripts/policy-replay.py` replays recent decisions against a change before merge |
+| **Named exceptions** | Exceptions in the registry, each with an owner and a reason; adding one needs security's approval | Today: kagent and HolmesGPT may use `deepseek-v4-pro` |
+| **MCP tools per project** | The project's `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
+| **Model for `auto`** | The project's `routing`; `policies/gateway/select.rego` | The gateway asks OPA which model `auto` means for the project, always one it may use |
+| **Limits and budget** | The project's `limits` and `budget`; OPA returns them with each allow decision and the gateway sends them to a rate-limit service with Redis | 429 once the project passes its requests or tokens per minute or its 30-day spend. A limit change goes live with the project's data, without a restart |
+| **Policy delivery** | Two bundles in MinIO, both signed with a Vault Transit key that never leaves Vault: `gateway-policy` (the Rego and the catalog, `policies/gateway`), built and signed by a policy build when `main` moves, after `opa test`; and `gateway-projects`, published by the registry. OPA verifies both and refuses a bundle that doesn't verify | A merged policy change is live within one to two minutes, a project change within about a minute of its approval (9 s measured), with no redeploy. `scripts/policy-replay.py` replays recent decisions against a policy change before merge |
 | **Tests** | `policies/gateway/authz_test.rego`, `opa test` in CI | Every rule above has a test |
 
 A denied call gets a 403 that says why, for example
@@ -632,7 +634,7 @@ both tiers carry the same gateway, policy check and network overhead.
 
 | Setting | Value |
 |---------|-------|
-| Tool | `vllm bench serve` (`--backend openai-chat`, `--endpoint /v1/chat/completions`), as in [tools/vllm-bench.yaml][benchpod] |
+| Tool | GuideLLM, as the onboarding pipeline's `bench-perf` step runs it through the gateway (the earlier benchmark used `vllm bench serve`) |
 | Targets | `qwen3.6-27b` (on-prem) · `gemini-3.8-flash`, `gemini-3.5-flash-lite`, `gemini-4-argon` (GCP) · the managed open-weight model, if one is offered |
 | Prompts | One fixed set per use case (real, de-identified prompts) plus ShareGPT for a general load profile; `--seed 42`; same `max_tokens` |
 | Load | Closed loop at concurrency 1, 8, 32; a warm-up run discarded; three repeats |
@@ -689,7 +691,7 @@ A placement table per use case, which becomes a virtual model (alias) in the gat
 
 | Step | Where | Done when |
 |------|-------|-----------|
-| 1. Data class per project, placement per model, per-tool MCP rules | OPA policy and data (`policies/gateway` and `projects/` in mini-platform-deployment), OCP, agentgateway ext_authz | **Done.** A restricted project gets 403 on every Gemini model; an internal project gets 403 on DeepSeek; tests in CI. Also done: `auto` routing, limits, budgets and alerts per project ([design record][mpp]) |
+| 1. Data class per project, placement per model, per-tool MCP rules | OPA policy (`policies/gateway` in mini-platform-deployment), the project registry, agentgateway ext_authz | **Done.** A restricted project gets 403 on every Gemini model; an internal project gets 403 on DeepSeek; tests in CI. Also done: `auto` routing, limits, budgets and alerts per project ([design record][mpp]), and the project registry with policy-decided approvals and signed bundles ([phase 2][reg]); OAuth clients for callers are next |
 | 2. Fallbacks only inward | agentgateway virtual models | A GCP outage falls back to `qwen3.6-27b`; never the reverse |
 | 3. PII guardrail on `gcp` calls | agentgateway prompt guards (webhook to an on-prem PII detector) | A test prompt with personal data on an internal key is blocked before leaving |
 | 4. Lock down the gateway identity | mini-platform-deployment: own namespace for the gateway, admission policy, kmcp role; this repo: `k8s_subjects` | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: agentgateway-proxy` is rejected at admission; kmcp can't request the token; only the gateway's pods get a Google token |
@@ -705,7 +707,7 @@ workloads shouldn't rely on it. Step 7 depends on what Model Garden offers in th
 production hardware and network.
 
 [bench]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/benchmarks/llm-d-vs-production-stack.md
-[benchpod]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/tools/vllm-bench.yaml
 [mop]: https://github.com/nolimitkun/model-onboarding-pipeline
 [agw]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/agentgateway.md
 [mpp]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/multi-project-policy.md
+[reg]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/project-registry.md
