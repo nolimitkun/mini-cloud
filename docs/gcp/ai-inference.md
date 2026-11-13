@@ -5,7 +5,8 @@
 > **Where this sits:** spans the on-prem hub and the GCP hub of the [GCP hub-and-spoke](README.md).
 > On GCP it uses the hub project `mini-cloud-499820`: the PSC endpoints, the `onprem-k8s` identity
 > pool and the `litellm-stt` SA, reached over the [tunnel](hub-connectivity.md). On-prem it uses the
-> mini-platform cluster's vLLM and its gateway, agentgateway, with OPA deciding each request.
+> mini-platform cluster's KServe model releases and its gateway, agentgateway, with OPA deciding each
+> request.
 
 On-prem applications chat, transcribe, speak and call shared tools through **one gateway**, the
 [mini-platform](https://github.com/nolimitkun/mini-platform-deployment) cluster's
@@ -17,7 +18,8 @@ OPA loads. **agentregistry** is the catalog of tools and agents. agentgateway re
 November 2026; the deploy repo's [`docs/agentgateway.md`][agw] covers its configuration.
 
 Behind the gateway sit two tiers:
-- **On-prem inference:** vLLM on the cluster's GPU, for work that can't leave the building
+- **On-prem inference:** vLLM on the cluster's GPU, deployed as KServe releases by the
+  [model onboarding pipeline][mop], for work that can't leave the building
   (personal data, regulated records, source code, anything under contract or residency rules).
 - **GCP inference:** Google's speech and Gemini models on Vertex AI, reached over the VPN through
   private endpoints with no key.
@@ -27,9 +29,10 @@ preference. Where both tiers are allowed, the project's routing rule picks the m
 (cheapest, fastest, by prompt type, or fixed); the benchmark below informs those rules.
 
 **Status:**
-- **Running:** both tiers, behind agentgateway. vLLM serves Qwen3.6-27B on one RTX 5090, with a
-  measured benchmark in mini-platform-deployment. The Gemini chat models and Google's speech APIs
-  go over the VPN.
+- **Running:** both tiers, behind agentgateway. A KServe release of Qwen3.6-27B (vLLM) runs on one
+  RTX 5090. The onboarding pipeline scanned, tuned, evaluated and benchmarked it before promoting it
+  to prod; it replaced the vLLM production-stack in November 2026. The Gemini chat models and
+  Google's speech APIs go over the VPN.
 - **Running:** the placement policy in OPA: data class per project, placement per model, per-tool
   rules for MCP, with tests in CI. Per project also: model selection for `auto` (with the vLLM
   Semantic Router for prompt type), rate limits and a spend budget, and a filtered model list
@@ -54,8 +57,8 @@ flowchart LR
         reg["agentregistry<br/>(catalog)"]
         mcp["MCP servers<br/>Grafana · kagent tools"]
         subgraph tier1["On-prem inference"]
-            sched["vLLM router<br/>(llm-d available)"]
-            vllm["vLLM pools<br/>PoC: 1× RTX 5090<br/>Prod: HGX B300 nodes"]
+            sched["InferencePool<br/>KServe llm-d scheduler"]
+            vllm["vLLM (KServe releases)<br/>PoC: 1× RTX 5090<br/>Prod: HGX B300 nodes"]
         end
         obs["Prometheus · Tempo · Langfuse<br/>(prompts and traces stay on-prem)"]
     end
@@ -94,7 +97,7 @@ What agentgateway serves today. Clients send the model name to
 
 | Model | Model | Where | Placement |
 |-------|-------|-------|-----------|
-| `qwen3.6-27b` | Qwen3.6-27B, NVFP4 | vLLM on the cluster's RTX 5090 | `onprem` |
+| `qwen3.6-27b` | Qwen3.6-27B, NVFP4 | KServe release (vLLM) on the cluster's RTX 5090; thinking off by default, on with `chat_template_kwargs: {"enable_thinking": true}` (returned in `reasoning_content`) | `onprem` |
 
 **On GCP**, all in the hub project, chat on the OpenAI endpoint:
 
@@ -226,10 +229,10 @@ rest in production.
 | | PoC (running) | Production |
 |---|---|---|
 | Hardware | 1× RTX 5090, 32 GB | HGX B300 nodes: Blackwell Ultra, 288 GB HBM3e per GPU, NVLink within a node |
-| Model today | `unsloth/Qwen3.6-27B-NVFP4` (≈ 24 GB of weights), 8k context, FP8 KV cache | Large open-weight models (hundreds of billions of parameters, MoE) at FP8 or NVFP4, long context |
+| Model today | `unsloth/Qwen3.6-27B-NVFP4` (≈ 24 GB of weights), 8k context, weights streamed from MinIO | Large open-weight models (hundreds of billions of parameters, MoE) at FP8 or NVFP4, long context |
 | Engine | vLLM, `--enforce-eager` (no room for CUDA graphs at this weight-to-memory ratio) | vLLM with CUDA graphs, tensor and expert parallelism across a node |
-| Routing | agentgateway → vLLM production-stack router (llm-d available, off) | llm-d: prefix-cache-aware scheduling, prefill/decode disaggregation, many replicas |
-| Measured | 324.8 output tok/s at concurrency 32; TTFT median 145 ms at concurrency 1 ([benchmark][bench]) | To be measured on the target nodes |
+| Routing | agentgateway → InferencePool → KServe's llm-d scheduler, one replica | llm-d: prefix-cache-aware scheduling, prefill/decode disaggregation, many replicas |
+| Measured | 324.8 output tok/s at concurrency 32; TTFT median 145 ms at concurrency 1 ([benchmark][bench], on the earlier production-stack). Each release is now also benchmarked by the onboarding pipeline (GuideLLM through the gateway) | To be measured on the target nodes |
 
 The PoC proves the serving stack, the gateway policy and the benchmark harness. **It doesn't predict
 B300 numbers.** The PoC card holds one quantized mid-size model with almost no KV-cache room and
@@ -690,8 +693,8 @@ A placement table per use case, which becomes a virtual model (alias) in the gat
 | 2. Fallbacks only inward | agentgateway virtual models | A GCP outage falls back to `qwen3.6-27b`; never the reverse |
 | 3. PII guardrail on `gcp` calls | agentgateway prompt guards (webhook to an on-prem PII detector) | A test prompt with personal data on an internal key is blocked before leaving |
 | 4. Lock down the gateway identity | mini-platform-deployment: own namespace for the gateway, admission policy, kmcp role; this repo: `k8s_subjects` | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: agentgateway-proxy` is rejected at admission; kmcp can't request the token; only the gateway's pods get a Google token |
-| 5. Hybrid benchmark harness | `tools/` + `docs/benchmarks/` (mini-platform-deployment) | One command runs the performance matrix through the gateway; results in MLflow |
-| 6. Eval sets and on-prem judge | Langfuse datasets, MLflow | Quality scores for 2–3 real use cases on the PoC |
+| 5. Hybrid benchmark harness | `tools/` + `docs/benchmarks/` (mini-platform-deployment) | One command runs the performance matrix through the gateway; results in MLflow. **On-prem part done:** the [onboarding pipeline][mop] benchmarks every release through the gateway; the GCP side is open |
+| 6. Eval sets and on-prem judge | Langfuse datasets, MLflow | Quality scores for 2–3 real use cases on the PoC. **Partly done:** the [onboarding pipeline][mop] scores every release on public benchmarks, a domain set with an on-prem judge and garak, against the prod model of its size class |
 | 7. Managed open-weight model on Vertex, if offered in `eu` | agentgateway config; this repo if a new endpoint is needed | Same model compared on both tiers |
 | 8. Production egress controls | Policy-enforcing CNI, NGFW rules, VPC-SC perimeter | Only the gateway reaches the PSC IPs; other projects are unreachable through PSC |
 | 9. B300 validation | Production cluster | The same harness re-run on B300; placement table updated from those numbers |
@@ -703,5 +706,6 @@ production hardware and network.
 
 [bench]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/benchmarks/llm-d-vs-production-stack.md
 [benchpod]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/tools/vllm-bench.yaml
+[mop]: https://github.com/nolimitkun/model-onboarding-pipeline
 [agw]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/agentgateway.md
 [mpp]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/multi-project-policy.md
