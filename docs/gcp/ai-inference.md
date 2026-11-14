@@ -54,7 +54,7 @@ flowchart LR
             authz["ext_authz → OPA<br/>data class · model · MCP tool"]
         end
         opa["OPA"]
-        ocp["Signed bundles via MinIO<br/>policy build (Rego from Git)<br/>project registry (projects, approvals)"]
+        ocp["Signed bundles via MinIO<br/>both published by the project registry<br/>after approval (Rego from Git, projects)"]
         reg["agentregistry<br/>(catalog)"]
         mcp["MCP servers<br/>Grafana · kagent tools"]
         subgraph tier1["On-prem inference"]
@@ -192,7 +192,7 @@ everything.
 | **MCP tools per project** | The project's `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
 | **Model for `auto`** | The project's `routing`; `policies/gateway/select.rego` | The gateway asks OPA which model `auto` means for the project, always one it may use |
 | **Limits and budget** | The project's `limits` and `budget`; OPA returns them with each allow decision and the gateway sends them to a rate-limit service with Redis | 429 once the project passes its requests or tokens per minute or its 30-day spend. A limit change goes live with the project's data, without a restart |
-| **Policy delivery** | Two bundles in MinIO, both signed with a Vault Transit key that never leaves Vault: `gateway-policy` (the Rego and the catalog, `policies/gateway`), built and signed by a policy build when `main` moves, after `opa test`; and `gateway-projects`, published by the registry. OPA verifies both and refuses a bundle that doesn't verify | A merged policy change is live within one to two minutes, a project change within about a minute of its approval (9 s measured), with no redeploy. `scripts/policy-replay.py` replays recent decisions against a policy change before merge |
+| **Policy delivery** | Two bundles in MinIO, both signed with a Vault Transit key that never leaves Vault: `gateway-policy` (the Rego and the catalog, `policies/gateway`) and `gateway-projects`, both published by the project registry. A commit merged to `main` becomes a policy change request: tested, built, replayed against recent decisions, then approved by the platform team and security. OPA verifies both bundles and refuses one that doesn't verify | A policy change is live within a minute of its approval (9 s measured), a project change likewise; a merge alone changes nothing, and there is no redeploy. `scripts/policy-replay.py` replays recent decisions against a policy change before merge |
 | **Tests** | `policies/gateway/authz_test.rego`, `opa test` in CI | Every rule above has a test |
 
 A denied call gets a 403 that says why, for example
