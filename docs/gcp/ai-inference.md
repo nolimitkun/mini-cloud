@@ -184,7 +184,7 @@ everything.
 
 | Mechanism | Where | Effect |
 |-----------|-------|--------|
-| **Project records** | The project registry (Postgres; imported from `projects/*.yaml`): each project, agent and exception. Every change is a change request, validated, approved by the roles `policies/gateway/portal.rego` names (owner, cost owner, security, platform; never its author) and published as the signed `gateway-projects` bundle | A change goes live within about a minute of its last approval, after a replay of recent decisions shows it changes nothing for other projects |
+| **Project records** | The project registry (Postgres, the records' only home): each project, agent and exception. Every change is a change request, validated, approved by the roles `policies/gateway/portal.rego` names (owner, cost owner, security, platform; never its author) and published as the signed `gateway-projects` bundle | A change goes live within about a minute of its last approval, after a replay of recent decisions shows it changes nothing for other projects |
 | **Keys per project** | The project's key ids; Vault → agentgateway `apiKeyAuthentication`, each entry carrying `{"project": ..., "key_id": ...}` | No key, 401. A key id its project doesn't list, 403, so dropping an id revokes the key. |
 | **Data class per project** | The project's `data_class`, optional `placement` and `models.allow` that only narrow it; classes in `policies/gateway/data.json` | `restricted` and `confidential` → `onprem`; `internal` → `onprem`, `gcp`; `public` → also `external` |
 | **Placement per model and Google API** | `catalog/models.yaml`, generated into the bundle as `data.catalog` | A model or API without a placement is denied, so a new model is blocked until someone places it |
@@ -192,7 +192,7 @@ everything.
 | **MCP tools per project** | The project's `mcp_tools`, glob patterns on prefixed tool names | `tools/call` of a tool outside the patterns gets a 403 |
 | **Model for `auto`** | The project's `routing`; `policies/gateway/select.rego` | The gateway asks OPA which model `auto` means for the project, always one it may use |
 | **Limits and budget** | The project's `limits` and `budget`; OPA returns them with each allow decision and the gateway sends them to a rate-limit service with Redis | 429 once the project passes its requests or tokens per minute or its 30-day spend. A limit change goes live with the project's data, without a restart |
-| **Policy delivery** | Two bundles in MinIO, both signed with a Vault Transit key that never leaves Vault: `gateway-policy` (the Rego and the catalog, `policies/gateway`) and `gateway-projects`, both published by the project registry. A commit merged to `main` becomes a policy change request: tested, built, replayed against recent decisions, then approved by the platform team and security. OPA verifies both bundles and refuses one that doesn't verify | A policy change is live within a minute of its approval (9 s measured), a project change likewise; a merge alone changes nothing, and there is no redeploy. `scripts/policy-replay.py` replays recent decisions against a policy change before merge |
+| **Policy delivery** | Two bundles in MinIO, both signed with a Vault Transit key that never leaves Vault: `gateway-policy` (the Rego and the catalog, `policies/gateway` in [gateway-policy][pol]) and `gateway-projects`, both published by the project registry. A commit merged to `main` becomes a policy change request: tested, built, replayed against recent decisions, then approved by the platform team and security. OPA verifies both bundles and refuses one that doesn't verify | A policy change is live within a minute of its approval (9 s measured), a project change likewise; a merge alone changes nothing, and there is no redeploy. `scripts/policy-replay.py` replays recent decisions against a policy change before merge |
 | **Tests** | `policies/gateway/authz_test.rego`, `opa test` in CI | Every rule above has a test |
 
 A denied call gets a 403 that says why, for example
@@ -559,8 +559,8 @@ the tunnel.
   names); its `-cyber-permissive` variant is left out. Gemini 3.1 Pro is preview and served only in `global`, which has no EU
   data residency, so it isn't offered. Google retires Gemini versions often: `gemini-3.5-flash` is
   listed until 19 May 2027 and `gemini-3.5-flash-lite` until 21 July 2027. A newer model is one more
-  entry in the deploy repo's `catalog/models.yaml`, with its placement; `gen-catalog.py` generates
-  the gateway's model list and the OPA data from it. That works as long as Google serves it in `eu`.
+  entry in the policy repo's `catalog/models.yaml` (nolimitkun/gateway-policy), with its placement;
+  `gen-catalog.py` generates the gateway's model list and the OPA data from it. That works as long as Google serves it in `eu`.
 - **Tunnel down = no speech.** Cluster DNS sends the API names only to the PSC IPs. Run
   `scripts/gcp-psc-dns.sh --remove` to fall back to the public endpoints. The keyless login still
   works that way, since the APIs are public, only the private path is lost.
@@ -691,7 +691,7 @@ A placement table per use case, which becomes a virtual model (alias) in the gat
 
 | Step | Where | Done when |
 |------|-------|-----------|
-| 1. Data class per project, placement per model, per-tool MCP rules | OPA policy (`policies/gateway` in mini-platform-deployment), the project registry, agentgateway ext_authz | **Done.** A restricted project gets 403 on every Gemini model; an internal project gets 403 on DeepSeek; tests in CI. Also done: `auto` routing, limits, budgets and alerts per project ([design record][mpp]), and the project registry with policy-decided approvals and signed bundles ([phase 2][reg]); OAuth clients for callers are next |
+| 1. Data class per project, placement per model, per-tool MCP rules | OPA policy (`policies/gateway` in nolimitkun/gateway-policy), the project registry, agentgateway ext_authz | **Done.** A restricted project gets 403 on every Gemini model; an internal project gets 403 on DeepSeek; tests in CI. Also done: `auto` routing, limits, budgets and alerts per project ([design record][mpp]), and the project registry with policy-decided approvals and signed bundles ([phase 2][reg]); OAuth clients for callers are next |
 | 2. Fallbacks only inward | agentgateway virtual models | A GCP outage falls back to `qwen3.6-27b`; never the reverse |
 | 3. PII guardrail on `gcp` calls | agentgateway prompt guards (webhook to an on-prem PII detector) | A test prompt with personal data on an internal key is blocked before leaving |
 | 4. Lock down the gateway identity | mini-platform-deployment: own namespace for the gateway, admission policy, kmcp role; this repo: `k8s_subjects` | A pod created by Spark, JupyterHub or Argo CD with `serviceAccountName: agentgateway-proxy` is rejected at admission; kmcp can't request the token; only the gateway's pods get a Google token |
@@ -709,5 +709,6 @@ production hardware and network.
 [bench]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/benchmarks/llm-d-vs-production-stack.md
 [mop]: https://github.com/nolimitkun/model-onboarding-pipeline
 [agw]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/agentgateway.md
-[mpp]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/multi-project-policy.md
-[reg]: https://github.com/nolimitkun/mini-platform-deployment/blob/main/docs/project-registry.md
+[mpp]: https://github.com/nolimitkun/gateway-policy/blob/main/docs/design.md
+[reg]: https://github.com/nolimitkun/project-registry/blob/main/docs/design.md
+[pol]: https://github.com/nolimitkun/gateway-policy
