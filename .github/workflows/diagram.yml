@@ -1,7 +1,9 @@
 name: live-diagram
 
 # Regenerate docs/diagrams/live-gcp-poc.svg from the GCP PoC remote state on every
-# change, and commit it back so the committed diagram tracks deployed resources.
+# change, and propose it as a pull request (branch bot/live-diagram, updated in place)
+# so the committed diagram tracks deployed resources. main takes pull requests only
+# (its ruleset), and a personal repository can't let Actions bypass that.
 #
 # Auth: GitHub OIDC -> Workload Identity Federation -> SA tf-diagram-ci, which only
 # reads the gs://mini-cloud-499820-tfstate bucket (Storage Object Viewer). No key
@@ -15,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   id-token: write
 
 jobs:
@@ -46,14 +49,22 @@ jobs:
           infra/diagram/gen-live-diagram.sh /tmp/state.json docs/diagrams/live-gcp-poc.svg
           rm -f /tmp/state.json
 
-      - name: commit if changed
+      - name: propose the diagram if it changed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ! git diff --quiet -- docs/diagrams/live-gcp-poc.svg; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add docs/diagrams/live-gcp-poc.svg
-            git commit -m "chore: refresh live diagram [skip ci]"
-            git push
-          else
+          if git diff --quiet -- docs/diagrams/live-gcp-poc.svg; then
             echo "diagram unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c bot/live-diagram
+          git add docs/diagrams/live-gcp-poc.svg
+          git commit -m "chore: refresh live diagram"
+          git push --force origin bot/live-diagram
+          if [ -z "$(gh pr list --head bot/live-diagram --state open --json number -q '.[].number')" ]; then
+            gh pr create --base main --head bot/live-diagram \
+              --title "chore: refresh live diagram" \
+              --body "docs/diagrams/live-gcp-poc.svg regenerated from the GCP PoC state at ${GITHUB_SHA}."
           fi
