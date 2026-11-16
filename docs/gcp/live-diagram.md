@@ -58,10 +58,13 @@ diagram refresh in one step.
 
 **CI-on-push (enabled):** the gcp-poc stack now uses a **GCS remote backend**
 (`gs://mini-cloud-499820-tfstate`), so [`.github/workflows/diagram.yml`](../../.github/workflows/diagram.yml)
-regenerates the SVG on every change to `infra/**` and commits it back:
+regenerates the SVG on every change to `infra/**` and proposes it as a pull request:
 
 1. pulls the state from GCS, runs Inframap + Graphviz, writes `docs/diagrams/live-gcp-poc.svg`;
-2. commits with `[skip ci]` (the commit touches `docs/`, not `infra/`, so it doesn't re-trigger).
+2. if it changed, force-pushes it to the branch `bot/live-diagram` and opens a pull request from it,
+   or leaves the open one to show the new commit. `main` takes pull requests only (its ruleset),
+   and a personal repository can't let GitHub Actions bypass that. The commit touches `docs/`, not
+   `infra/`, so merging it doesn't re-trigger the job.
 
 **Auth (no keys):** the job signs in through Workload Identity Federation as `tf-diagram-ci`, which
 only has **Storage Object Viewer** on the state bucket (read is enough — the diagram only pulls

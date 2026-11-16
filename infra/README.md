@@ -91,6 +91,6 @@ CI, in `.github/workflows/`:
 - [`terraform-plan.yml`](../.github/workflows/terraform-plan.yml) runs a real `terraform plan` of
   `stacks/gcp-poc` on PRs, keylessly as the read-only `tf-plan-ci` SA, and posts only resource
   addresses and actions (the repo is public).
-- [`diagram.yml`](../.github/workflows/diagram.yml) regenerates the live diagram on pushes to `main`.
+- [`diagram.yml`](../.github/workflows/diagram.yml) regenerates the live diagram on pushes to `main` and proposes it as a pull request.
 
 Nothing in CI applies; `apply` is run by hand from a credentialed machine.
