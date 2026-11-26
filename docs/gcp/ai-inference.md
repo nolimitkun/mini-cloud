@@ -119,8 +119,19 @@ Google token:
 | `/google/tts/...` | Text-to-Speech v1, `eu-texttospeech.googleapis.com` | Chirp 3 HD voices |
 | `/google/vertex-eu/...` | Vertex AI, `aiplatform.eu.rep.googleapis.com` | Gemini 3.8 Flash TTS and Flash-Lite TTS (`generateContent` with audio output) |
 | `/google/vertex-europe-west1/...` | Vertex AI, `europe-west1-aiplatform.googleapis.com` | Gemini Live 2.5 Flash native audio (`BidiGenerateContent` websocket) |
+| gRPC `/google.cloud.speech.v2.Speech/...`, listener `grpc` (port 81) | Speech-to-Text v2, `eu-speech.googleapis.com` | Chirp 3, streaming (`StreamingRecognize`) |
+| gRPC `/google.cloud.texttospeech.v1.TextToSpeech/...`, listener `grpc` | Text-to-Speech v1, `eu-texttospeech.googleapis.com` | Chirp 3 HD voices, streaming (`StreamingSynthesize`) |
 
-All four have placement `gcp`.
+All have placement `gcp`.
+
+**Streaming speech is gRPC only.** Google offers `StreamingRecognize` and `StreamingSynthesize` only
+over gRPC, whose paths are `/<package>.<Service>/<Method>` and can't take a `/google/...` prefix.
+So the gateway routes them by service name: each Google API record in the project registry lists
+the gRPC services it serves (`grpcServices`), and OPA maps the service back to the API, with the
+same placement rules. Clients use plaintext HTTP/2 (h2c) to the gateway's `grpc` listener, port 81,
+and send the gateway key as `authorization` metadata. That listener exists because the
+gateway's other policies read request bodies, which on the main listener would hold a stream until
+it ends.
 
 **Outside both tiers:** `deepseek-v4-pro` (chat) goes to `api.deepseek.com` over the internet with an
 API key. It is neither on-prem nor in the EU, so its placement is `external`: public data only, plus
@@ -151,6 +162,13 @@ client → agentgateway   POST /google/vertex-eu/v1/projects/…/locations/eu/pu
 
 client ⇄ agentgateway   WS /google/vertex-europe-west1/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent
   ⇄ europe-west1-aiplatform.googleapis.com  (cluster DNS → 10.48.64.2)
+
+client ⇄ agentgateway:81   gRPC (h2c) /google.cloud.speech.v2.Speech/StreamingRecognize
+       API key → project → OPA: service → Google API speech, placement gcp → allow
+  ⇄ eu-speech.googleapis.com:443   → same DNS, tunnel and PSC endpoint
+
+client ⇄ agentgateway:81   gRPC (h2c) /google.cloud.texttospeech.v1.TextToSpeech/StreamingSynthesize
+  ⇄ eu-texttospeech.googleapis.com:443
 ```
 
 ---
@@ -270,8 +288,8 @@ All in the hub project (`mini-cloud-499820`). The `gcp-stt-poc` module enables t
 
 | API | Enabled by | Used for |
 |-----|------------|----------|
-| `speech.googleapis.com` | `gcp-stt-poc` | Speech-to-Text v2 `recognize`, model `chirp_3`, location `eu` |
-| `texttospeech.googleapis.com` | `gcp-stt-poc` | Text-to-Speech `text:synthesize`, called on the `eu-texttospeech` endpoint |
+| `speech.googleapis.com` | `gcp-stt-poc` | Speech-to-Text v2 `recognize` and `StreamingRecognize`, model `chirp_3`, location `eu` |
+| `texttospeech.googleapis.com` | `gcp-stt-poc` | Text-to-Speech `text:synthesize` and `StreamingSynthesize`, called on the `eu-texttospeech` endpoint |
 | `aiplatform.googleapis.com` | `gcp-stt-poc` | Gemini chat and TTS (`generateContent`, `eu`) and Gemini Live (`BidiGenerateContent`, `europe-west1`) |
 | `sts.googleapis.com` | `gcp-stt-poc` | Trades the pod's Kubernetes token for a federated Google token |
 | `iamcredentials.googleapis.com` | `gcp-stt-poc` | Trades that for a one-hour token for `litellm-stt` |
@@ -535,6 +553,43 @@ curl -s $GW/v1/chat/completions -H "Authorization: Bearer $OWUI" -H 'Content-Typ
 
 The `vault` commands need a Vault token in the pod's environment (`VAULT_TOKEN`).
 
+Streaming over gRPC, with Google's Python clients (`pip install google-cloud-speech
+google-cloud-texttospeech`) pointed at the gateway's `grpc` listener:
+
+```bash
+kubectl -n mini-platform port-forward svc/agentgateway-proxy 8081:81 &
+```
+
+```python
+import os, grpc
+from google.cloud.speech_v2 import SpeechClient
+from google.cloud.speech_v2.services.speech.transports.grpc import SpeechGrpcTransport
+from google.cloud.speech_v2.types import cloud_speech as cs
+
+client = SpeechClient(transport=SpeechGrpcTransport(channel=grpc.insecure_channel("localhost:8081")))
+config = cs.StreamingRecognitionConfig(config=cs.RecognitionConfig(
+    explicit_decoding_config=cs.ExplicitDecodingConfig(encoding="LINEAR16", sample_rate_hertz=16000,
+                                                       audio_channel_count=1),
+    language_codes=["en-US"], model="chirp_3"))
+
+def requests(pcm):                      # 16 kHz mono PCM, in 100 ms chunks
+    yield cs.StreamingRecognizeRequest(recognizer="projects/mini-cloud-499820/locations/eu/recognizers/_",
+                                       streaming_config=config)
+    for i in range(0, len(pcm), 3200):
+        yield cs.StreamingRecognizeRequest(audio=pcm[i:i + 3200])
+
+pcm = open("sample.wav", "rb").read()[44:]
+for r in client.streaming_recognize(requests=requests(pcm),
+                                    metadata=[("authorization", f"Bearer {os.environ['KEY']}")]):
+    for result in r.results:
+        print(result.is_final, result.alternatives[0].transcript)
+```
+
+`StreamingSynthesize` works the same way, with `TextToSpeechClient` and its gRPC transport on the same channel. Use a
+`StreamingSynthesizeConfig` with a Chirp 3 HD voice first, then the text in parts. It returns
+LINEAR16 audio chunks as they're ready, the first after about 0.25 s. A project whose placements
+don't include `gcp` gets `PERMISSION_DENIED`, and OPA's decision log has the reason.
+
 `sudo tcpdump -ni ipsec0 'host 10.48.64.2 or host 10.48.65.2'` shows the requests leaving through
 the tunnel.
 
@@ -543,7 +598,10 @@ the tunnel.
 - **No OpenAI audio API.** Speech goes through Google's own APIs under `/google/...`. Clients that
   only speak OpenAI's `/v1/audio/*` need an adapter.
 - **One minute, 10 MB per request** for Chirp 3's synchronous `recognize`. Longer audio needs
-  `BatchRecognize`, which writes to Cloud Storage and isn't set up.
+  `BatchRecognize`, which writes to Cloud Storage and isn't set up, or a stream.
+- **Streams.** Google ends a `StreamingRecognize` stream after about five minutes, so longer
+  sessions open a new one. The gateway's `grpc` listener is plaintext and reached through the
+  cluster (a port-forward from outside). There is no TLS for gRPC clients off the cluster.
 - **Locations.** Chirp 3, the Gemini 3.8 TTS models and the Gemini chat models run only in
   `global`, `us` or `eu` (none in `europe-west1`); `eu`
   keeps the data in Europe, and the hub's location exception allows only that. Another location
